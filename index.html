@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☢️</text></svg>">
+  <title>PDA Freedom</title>
+  
+  <!-- ПОДКЛЮЧАЕМ ДИЗАЙН -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- РАДАР ОНЛАЙНА -->
+<div class="online-radar" id="onlineRadar" style="display: none;">
+  <div style="font-size: 0.8rem; color: #aaffaa; border-bottom: 1px dashed #2a6b2a; padding-bottom: 5px; margin-bottom: 8px; font-weight: bold; text-align: left;">
+    📶 В сети: <span id="online-count">1</span>
+  </div>
+  <div id="online-list" style="font-size: 0.8rem; color: #8ab88a; max-height: 120px; overflow-y: auto; text-align: left;">
+    <!-- Тут будут юзеры -->
+  </div>
+</div>
+
+<!-- ЭКРАН АВТОРИЗАЦИИ -->
+<div class="pda" id="login-screen" style="max-width: 400px; margin: auto; text-align: center; height: auto; overflow-y: auto;">
+  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 1.5A</div>
+  <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
+  
+  <label>Позывной (Логин)</label>
+  <input type="text" id="username" placeholder="Введи свой позывной" style="text-align: center; margin-bottom: 15px;">
+  <label>Пароль доступа</label>
+  <input type="password" id="password" placeholder="Введи пароль" style="text-align: center; margin-bottom: 25px;">
+  
+  <button class="submit-btn" onclick="login()" id="login-btn">Войти в сеть</button>
+  <div id="login-msg" style="margin-top: 15px;"></div>
+</div>
+
+<!-- ГЛАВНЫЙ ИНТЕРФЕЙС КПК -->
+<div class="pda" id="main-app" style="display: none;">
+  <div class="pda-header">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+      <div class="version">PDA FREEDOM 1.5A</div>
+      <div class="sync-status">🟢 В сети</div>
+    </div>
+    <div style="text-align: right; font-size: 0.8rem; color: #8ab88a; margin-bottom: 5px;">
+      <span id="userGreeting"></span> | <a href="#" onclick="logout()" style="color: #ff6666; text-decoration: none; font-weight: bold;">Выйти</a>
+    </div>
+  </div>
+
+  <div class="obshchak">
+    <div class="obshchak-title">Общак</div>
+    <span id="obs">...</span> руб.
+  </div>
+
+  <div class="tabs">
+    <button class="active" data-tab="finance">Финансы</button>
+    <button data-tab="stock">Склад</button>
+    <button data-tab="faction-tasks">Задачи</button>
+    <button data-tab="stalkers">База</button>
+    <button data-tab="housing">Жилье</button>
+    <button data-tab="rating">Рейтинг</button>
+    <button data-tab="history" class="admin-only">История</button>
+  </div>
+
+  <!-- Финансы -->
+  <div id="tab-finance" class="tab-content active">
+    <h3 style="text-align: center; margin-top: 0;">Операции с общаком</h3>
+    <label>Сумма (+/-)</label>
+    <input type="number" id="amount" placeholder="5000 или -2000">
+    <label>Причина</label>
+    <input type="text" id="reason" placeholder="Например: Продал арты">
+    
+    <div class="checkbox-container admin-only">
+      <input type="checkbox" id="silentEdit">
+      <label for="silentEdit" style="cursor: pointer;">Тихая коррекция (без логов)</label>
+    </div>
+    <button class="submit-btn" id="submitBtn" onclick="submitOperation()">Внести в общак</button>
+    <div id="message"></div>
+
+    <div class="admin-only" style="margin-top: 25px; border-top: 1px dashed #555; padding-top: 15px;">
+      <div class="pahanka-display">👑 Паханка: <span id="pahanki-obs">...</span> руб.</div>
+      <label style="color: #ffaa00;">Сумма в Паханку (+/-)</label>
+      <input type="number" id="p_amount" placeholder="Изменить паханку" style="border-color: #ffaa00;">
+      <label style="color: #ffaa00;">Причина (пишется в логи)</label>
+      <input type="text" id="p_reason" placeholder="Например: Выкуп туриста" style="border-color: #ffaa00;">
+      <button class="submit-btn" style="background: #332200; border-color: #ffaa00; color: #ffdd88;" onclick="submitPahanki()">Обновить Паханку</button>
+    </div>
+  </div>
+
+  <!-- Склад -->
+  <div id="tab-stock" class="tab-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h3 style="margin: 0;">Инвентарь</h3>
+      <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('stockItemForm')">➕ Добавить предмет</button>
+    </div>
+
+    <div id="stockItemForm" class="hidden-form">
+      <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+        <select id="si_category" style="flex: 1;">
+          <option value="" disabled selected>-- Категория --</option>
+          <option value="Артефакты">Артефакты</option>
+          <option value="Шлема">Шлема</option>
+          <option value="Броня">Броня</option>
+          <option value="Оружие">Оружие</option>
+          <option value="Магазины">Магазины</option>
+          <option value="Глушители">Глушители</option>
+          <option value="Гранаты и гранатомёты">Гранаты и гранатомёты</option>
+          <option value="Рюкзаки, пояса и конты">Рюкзаки, пояса и конты</option>
+          <option value="Газики">Газики</option>
+          <option value="Литраж">Литраж</option>
+          <option value="Растаманка">Растаманка</option>
+          <option value="Техничка">Техничка</option>
+          <option value="Медицина">Медицина</option>
+        </select>
+        <input type="text" id="si_name" placeholder="Название предмета" style="flex: 1;">
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <input type="text" id="si_price" placeholder="Цена (напр. 15K или Не продается)" style="flex: 1;">
+        <input type="number" id="si_qty" placeholder="Количество" value="1" style="flex: 1;">
+      </div>
+      <button class="submit-btn" style="width: 100%; padding: 10px; margin: 10px 0 0;" onclick="createStockItem()">Занести в базу</button>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: flex-end;">
+      <div style="flex: 1;">
+        <label style="margin: 0 0 5px;">Категория</label>
+        <select id="categorySelect" style="margin: 0;">
+          <option value="" disabled selected>-- Выбери категорию --</option>
+          <option value="Артефакты">Артефакты</option>
+          <option value="Шлема">Шлема</option>
+          <option value="Броня">Броня</option>
+          <option value="Оружие">Оружие</option>
+          <option value="Магазины">Магазины</option>
+          <option value="Глушители">Глушители</option>
+          <option value="Гранаты и гранатомёты">Гранаты и гранатомёты</option>
+          <option value="Рюкзаки, пояса и конты">Рюкзаки, пояса и конты</option>
+          <option value="Газики">Газики</option>
+          <option value="Литраж">Литраж</option>
+          <option value="Растаманка">Растаманка</option>
+          <option value="Техничка">Техничка</option>
+          <option value="Медицина">Медицина</option>
+        </select>
+      </div>
+      <div style="flex: 1;">
+        <label style="margin: 0 0 5px; color: #ffaa00;">Умный поиск</label>
+        <input type="text" id="stockSearch" placeholder="Найти (Enter)" onkeypress="if(event.key === 'Enter') searchStock()" style="margin: 0; border-color: #ffaa00;">
+      </div>
+    </div>
+    
+    <div class="table-wrapper">
+      <table class="stock-table">
+        <thead>
+          <tr>
+            <th id="th-name" onclick="sortStock('name')">Название ▲</th>
+            <th id="th-price" onclick="sortStock('price')">Цена</th>
+            <th id="th-qty" onclick="sortStock('quantity')">Кол-во</th>
+          </tr>
+        </thead>
+        <tbody id="stockBody"><tr><td colspan="4" style="text-align: center;">-- Выбери категорию или введи в поиск --</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Задачи Группировки -->
+  <div id="tab-faction-tasks" class="tab-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0;">Глобальные контракты</h3>
+      <button class="qty-btn admin-only" style="background: #552a2a;" onclick="toggleForm('taskForm')">➕ Создать задачу</button>
+    </div>
+    
+    <div id="taskForm" class="hidden-form admin-only">
+      <input type="text" id="t_title" placeholder="Суть контракта (Кратко)" style="margin-bottom: 8px;">
+      <textarea id="t_desc" rows="3" placeholder="Подробное описание задачи..." style="margin-bottom: 8px; resize: none;"></textarea>
+      <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+        <input type="text" id="t_risk" placeholder="Риск (Низкий/Смертельный)" style="flex: 1;">
+        <input type="text" id="t_imp" placeholder="Важность (Обычная/Критическая)" style="flex: 1;">
+      </div>
+      <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem;">Дедлайн:</label><input type="date" id="t_deadline"></div>
+        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem; color:transparent;">.</label><input type="text" id="t_reward" placeholder="Награда (руб.)"></div>
+      </div>
+      <button class="submit-btn" style="width: 100%; padding: 10px; margin: 10px 0 0;" onclick="createFactionTask()">Вывесить на доску</button>
+    </div>
+
+    <div class="card-grid" id="factionTasksGrid"><div style="text-align: center; width: 100%;">Загрузка...</div></div>
+  </div>
+
+  <!-- База Сталкеров -->
+  <div id="tab-stalkers" class="tab-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0;">База Сталкеров</h3>
+      <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('stalkerForm')">☢️ Добавить досье</button>
+    </div>
+    
+    <input type="text" id="stalkerSearch" placeholder="Поиск по позывному..." oninput="filterStalkers()" style="margin-bottom: 15px; border-color: #5a8a5a;">
+    
+    <div id="stalkerForm" class="hidden-form">
+      <input type="text" id="s_name" placeholder="Позывной сталкера" style="margin-bottom: 10px;">
+      <div class="paste-area" tabindex="0" id="pasteArea">
+        📸 Кликни сюда и нажми <b>Ctrl+V</b> чтобы вставить фото
+        <img id="previewImage" style="display:none; max-width: 100%; max-height: 150px; margin-top: 10px; border-radius: 8px;">
+      </div>
+      <input type="hidden" id="s_photo"> 
+      <button class="submit-btn" style="width: 100%; padding: 10px; margin: 15px 0 0;" onclick="createStalker()">Внести в базу</button>
+    </div>
+
+    <div class="card-grid" id="stalkersGrid"><div style="text-align: center; width: 100%;">Загрузка базы...</div></div>
+  </div>
+
+  <!-- Жилье -->
+  <div id="tab-housing" class="tab-content">
+    <h3 style="text-align: center; margin-top: 0;">Аренда жилья</h3>
+    <div class="housing-grid" id="housingGrid"><div style="text-align: center; width: 100%;">Загрузка...</div></div>
+  </div>
+
+  <!-- Рейтинг -->
+  <div id="tab-rating" class="tab-content">
+    <h3 style="text-align: center; margin-top: 0;">Топ Мэнов</h3>
+    <div class="table-wrapper">
+      <table class="rating-table">
+        <thead><tr><th>Место</th><th>Мэн</th><th>Внесено</th></tr></thead>
+        <tbody id="ratingBody"><tr><td colspan="3">Загрузка...</td></tr></tbody>
+       </table>
+    </div>
+  </div>
+
+  <!-- История Общака -->
+  <div id="tab-history" class="tab-content admin-only">
+    <h3 style="text-align: center; margin-top: 0;">Логи финансовых операций</h3>
+    <div class="table-wrapper" style="border-radius: 8px; overflow: hidden; border: 1px solid #2a6b2a;">
+      <table class="stock-table" style="margin: 0; border: none;">
+        <thead><tr><th style="width: 20%;">Время</th><th style="width: 20%;">Позывной</th><th style="width: 15%;">Сумма</th><th style="width: 45%;">Причина</th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="4" style="text-align: center;">Загрузка логов...</td></tr></tbody>
+       </table>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО: ДОСЬЕ СТАЛКЕРА -->
+<div class="modal-overlay" id="stalkerModal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal('stalkerModal')">✖</span>
+    
+    <div style="display: flex; gap: 20px; align-items: flex-start;">
+      <div id="m_photo" style="width: 120px; height: 120px; border: 1px solid #2a6b2a; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #000;"></div>
+      <div style="flex: 1;">
+        <h2 id="m_name" style="margin: 0 0 10px; color: #b3ffb3;">Позывной</h2>
+        <div id="m_status_container" style="margin-bottom: 10px;"></div>
+        
+        <p style="margin: 0; color: #8ab88a; font-size: 0.9rem;">
+          Успех: <span id="m_completed" style="color:#aaffaa; font-weight:bold;">0</span> | 
+          Провал: <span id="m_failed" style="color:#ff6666; font-weight:bold;">0</span>
+        </p>
+
+        <button id="btn_delete_stalker" class="delete-stalker-btn admin-only" onclick="deleteCurrentStalker()">Удалить досье (Мертв)</button>
+      </div>
+    </div>
+    <hr style="border: 1px solid #2a6b2a; margin: 20px 0;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+      <h3 style="margin: 0;">Личные контракты</h3>
+      <div style="display: flex; gap: 10px;">
+        <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('newTaskForm')">➕ Выдать</button>
+        <button class="qty-btn" style="background: #aa5500; color: #fff;" onclick="givePodgon()">🎁 Дал подгон</button>
+      </div>
+    </div>
+
+    <div id="newTaskForm" class="hidden-form" style="background: #0f1f0f;">
+      <input type="text" id="nt_title" placeholder="Задача" style="margin-bottom: 8px;">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem;">Дедлайн:</label><input type="date" id="nt_deadline"></div>
+        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem; color:transparent;">.</label><input type="text" id="nt_reward" placeholder="Награда (руб.)"></div>
+      </div>
+      <button class="submit-btn" style="width: 100%; padding: 10px; margin: 10px 0 0;" onclick="submitNewTask()">Назначить</button>
+    </div>
+
+    <div id="m_tasks_list"><div style="text-align: center; color: #888;">Загрузка...</div></div>
+  </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО: ГЛОБАЛЬНАЯ ЗАДАЧА -->
+<div class="modal-overlay" id="factionTaskModal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal('factionTaskModal')">✖</span>
+    <h2 id="ft_m_title" style="margin-top: 0; color: #b3ffb3;">Суть задачи</h2>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 0.95rem;">
+      <span id="ft_m_imp"></span>
+      <span id="ft_m_risk"></span> 
+    </div>
+    <p style="color: #8ab88a; margin: 5px 0;">Дедлайн: <span id="ft_m_deadline" style="color:#fff;"></span></p>
+    <p style="color: #8ab88a; margin: 5px 0 20px;">Награда: <span id="ft_m_reward" style="color:#ffaa00; font-weight: bold;"></span></p>
+    
+    <h4 style="margin: 0 0 10px; color: #5a8a5a;">Подробности:</h4>
+    <div id="ft_m_desc" style="color: #aaffaa; font-size: 0.95rem; white-space: pre-wrap; background: #0a140a; padding: 15px; border-radius: 8px; border: 1px solid #1a3a1a;"></div>
+    
+    <button class="delete-stalker-btn admin-only" style="width: 100%;" onclick="deleteCurrentFactionTask()">Удалить глобальную задачу</button>
+  </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАНИЕ ЖИЛЬЯ -->
+<div class="modal-overlay" id="housingModal">
+  <div class="modal-content" style="max-width: 400px;">
+    <span class="close-btn" onclick="closeModal('housingModal')">✖</span>
+    <h2 style="margin-top: 0; color: #b3ffb3;">Домик #<span id="h_id_display"></span></h2>
+    <input type="hidden" id="h_id">
+    
+    <label>Жилец (позывной или пусто для Свободно)</label>
+    <input type="text" id="h_renter" placeholder="Например: Стрелок">
+    
+    <label>Срок аренды (включительно)</label>
+    <input type="date" id="h_deadline">
+    
+    <button class="submit-btn" style="width: 100%; margin-top: 20px;" onclick="saveHousing()">Сохранить</button>
+  </div>
+</div>
+
+<!-- ПОДКЛЮЧАЕМ БАЗУ И МОЗГИ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

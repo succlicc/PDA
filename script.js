@@ -1,4 +1,4 @@
-const supabaseUrl = 'https://pda-bridge.pavlov6452.workers.dev'; 
+const supabaseUrl = 'https://api.pda-freedom.online'; 
 const supabaseKey = 'sb_publishable_mPj_HTIpjAiyvwvW23vCdg_sHWFMvAI';
 const db = window.supabase.createClient(supabaseUrl, supabaseKey);
  

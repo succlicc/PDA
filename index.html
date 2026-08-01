@@ -54,7 +54,7 @@
 
 <!-- ЭКРАН АВТОРИЗАЦИИ -->
 <div class="pda" id="login-screen" style="max-width: 400px; margin: auto; text-align: center; height: auto; overflow-y: auto;">
-  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 2.2 CRM</div>
+  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 2.3 CRM</div>
   <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
   
   <label>Позывной (Логин)</label>
@@ -69,7 +69,7 @@
 <!-- ГЛАВНЫЙ ИНТЕРФЕЙС КПК -->
 <div class="pda" id="main-app" style="display: none;">
   <div class="pda-header" style="text-align: center; margin-bottom: 15px; border-bottom: 1px solid #2a6b2a; padding-bottom: 10px;">
-    <div class="version">PDA FREEDOM 2.2 CRM</div>
+    <div class="version">PDA FREEDOM 2.3 CRM</div>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
       <div class="sync-status">🟢 В сети</div>
       <div style="font-size: 0.8rem; color: #8ab88a;">
@@ -302,11 +302,11 @@
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
       <h3 style="margin: 0;">Задачи бойца</h3>
-      <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('newMemberTaskForm')">➕ Выдать задание</button>
+      <button class="qty-btn admin-only" style="background: #2a552a;" onclick="toggleForm('newMemberTaskForm')">➕ Выдать задание</button>
     </div>
 
-    <!-- Форма выдачи задания бойцу -->
-    <div id="newMemberTaskForm" class="hidden-form" style="background: #0f1f0f;">
+    <!-- Форма выдачи задания бойцу (ТОЛЬКО АДМИНЫ) -->
+    <div id="newMemberTaskForm" class="hidden-form admin-only" style="background: #0f1f0f;">
       <input type="text" id="nmt_title" placeholder="Суть задачи (Кратко)" style="margin-bottom: 8px;">
       <textarea id="nmt_desc" rows="3" placeholder="Подробное описание..." style="margin-bottom: 8px; resize: vertical;"></textarea>
       <div style="display: flex; gap: 10px; align-items: center;">

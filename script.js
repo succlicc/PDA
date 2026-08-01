@@ -46,6 +46,7 @@ function checkSession() {
     applyRoles(window.currentUser.role);
     fetchObshchak();
     updateOnlineStatus();
+    loadMembersList(true); // Загружаем состав сразу для чекбоксов хабара
   }
 }
 
@@ -88,6 +89,7 @@ async function login() {
   applyRoles(data.role); 
   fetchObshchak(); 
   updateOnlineStatus();
+  loadMembersList(true);
 }
 
 function applyRoles(role) {
@@ -186,6 +188,54 @@ async function submitOperation() {
   btn.disabled = false;
   
   fetchObshchak(); setTimeout(() => { msgDiv.textContent = ''; }, 2000);
+}
+
+// НОВАЯ ФУНКЦИЯ: УЧЕТ ХАБАРА В РЕЙТИНГ (БЕЗ ОБЩАКА)
+async function submitHabarRating() {
+  if (!window.currentUser) return;
+  let amount = parseInt(document.getElementById('habar_amount').value);
+  let reason = document.getElementById('habar_reason').value.trim() || 'Сдача ценного хабара';
+  let msgDiv = document.getElementById('habar_message');
+
+  if (isNaN(amount) || amount <= 0) {
+      msgDiv.textContent = 'Введи корректную сумму!'; msgDiv.className = 'error-message'; return;
+  }
+
+  let checkboxes = document.querySelectorAll('.habar-cb:checked');
+  if (checkboxes.length === 0) {
+      msgDiv.textContent = 'Выбери хотя бы одного участника!'; msgDiv.className = 'error-message'; return;
+  }
+
+  let btn = document.getElementById('btnSubmitHabar');
+  btn.disabled = true;
+
+  let splitAmount = Math.round(amount / checkboxes.length);
+  let logsToInsert = [];
+
+  checkboxes.forEach(cb => {
+      logsToInsert.push({
+          callsign: cb.value,
+          amount: splitAmount,
+          reason: `[РЕЙТИНГ] ${reason}`
+      });
+  });
+
+  const { error } = await db.from('obshchak_logs').insert(logsToInsert);
+
+  if (error) {
+      msgDiv.textContent = 'Ошибка при записи!'; msgDiv.className = 'error-message';
+  } else {
+      msgDiv.textContent = `✓ Зачислено по ${splitAmount.toLocaleString()} руб. (${checkboxes.length} чел.)`;
+      msgDiv.className = 'success-message';
+      document.getElementById('habar_amount').value = '';
+      document.getElementById('habar_reason').value = '';
+      document.querySelectorAll('.habar-cb').forEach(cb => cb.checked = false);
+      if (currentTab === 'rating') loadRating(true);
+      if (currentTab === 'history') loadHistory(true);
+  }
+
+  btn.disabled = false;
+  setTimeout(() => { msgDiv.textContent = ''; }, 4000);
 }
 
 async function submitPahanki() {
@@ -635,7 +685,7 @@ async function loadStalkerTasks(stalkerId) {
     let editBtn = (canEdit && !t.is_completed) ? `<button class="qty-btn" style="background:transparent; color:#ffaa00; border:none; padding: 2px 6px; font-size: 1rem;" onclick="openEditTaskModal('personal', ${t.id}, '${cleanTitle.replace(/'/g, "\\'")}', '${t.deadline}', '${safeReward}', '', ${stalkerId})">✏️</button>` : '';
     let deleteBtn = canEdit ? `<button class="qty-btn" style="background:transparent; color:#ff6666; border:none; padding: 2px 6px; margin-left:5px; font-size: 1rem;" onclick="deleteStalkerTask(${t.id}, ${stalkerId}, ${t.is_completed}, '${safeTitle}')">✖</button>` : '';
 
-    if (!canEdit) editBtn = `<span style="color:#888; font-size:0.7rem; margin-left:10px;">(Только автор)</span>`;
+    if (!canEdit && !t.is_completed) editBtn = `<span style="color:#888; font-size:0.7rem; margin-left:10px;">(Только автор)</span>`;
 
     list.innerHTML += `
       <div class="task-card-list" style="${t.is_completed ? 'opacity:0.6;' : ''}">
@@ -872,9 +922,22 @@ async function loadMembersList(isTick = false) {
   
   if (data) {
     allMembersList = data.filter(m => m.role !== 'curator');
-    
     allMembersList.sort((a, b) => getRankWeight(a.rank) - getRankWeight(b.rank));
     
+    // Обновляем чекбоксы в разделе Хабар
+    let habarContainer = document.getElementById('habar_members_list');
+    if (habarContainer) {
+        let checked = Array.from(habarContainer.querySelectorAll('input.habar-cb:checked')).map(cb => cb.value);
+        let habarHtml = '';
+        allMembersList.forEach(m => {
+            let isChecked = checked.includes(m.callsign) ? 'checked' : '';
+            habarHtml += `<label style="display:flex; align-items:center; gap:8px; margin:0; font-size:0.9rem; color:#b3ffb3; cursor:pointer; font-weight:normal; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; border: 1px solid #1a3a1a;">
+                <input type="checkbox" value="${m.callsign}" class="habar-cb" style="width:16px; height:16px; margin:0; cursor:pointer;" ${isChecked}> ${m.callsign}
+            </label>`;
+        });
+        habarContainer.innerHTML = habarHtml;
+    }
+
     const { data: tasksData } = await db.from('member_tasks').select('assigned_to, status');
     let actCounts = {};
     let reviewCounts = {};
@@ -1034,7 +1097,7 @@ async function loadMemberTasksForProfile(callsign) {
           
           if (isAdmin) {
               if (t.status !== 'completed') {
-                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Закрыть задачу</button>`;
+                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Принять (Готово)</button>`;
               }
               if (t.status === 'review') {
                   actionBtns += `<button class="qty-btn" style="background: #552a2a; color:#ffcccc;" onclick="setMemberTaskStatus(${t.id}, 'active')">❌ Отклонить отчет</button>`;
@@ -1248,7 +1311,18 @@ async function loadHistory(isTick = false) {
       let dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       let amtStr = log.amount > 0 ? '+ ' + log.amount.toLocaleString() : log.amount.toLocaleString();
       let amtCol = log.amount > 0 ? '#aaffaa' : '#ffaaaa';
-      newHTML += `<tr><td>${dateStr}</td><td>${log.callsign}</td><td style="color:${amtCol}">${amtStr} руб.</td><td style="text-align:left;">${log.reason}</td></tr>`;
+      let reasonText = log.reason || '';
+
+      if (reasonText.startsWith('[РЕЙТИНГ]')) {
+          amtCol = '#55ccff'; 
+          amtStr = '+ ' + log.amount.toLocaleString();
+          reasonText = `<span style="background: #113344; color: #55ccff; padding: 2px 4px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px;">В РЕЙТИНГ</span>` + reasonText.replace('[РЕЙТИНГ] ', '');
+      } else if (reasonText.startsWith('[ПАХАНКА]')) {
+          amtCol = '#ffaa00'; 
+          reasonText = `<span style="background: #332200; color: #ffaa00; padding: 2px 4px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px;">ПАХАНКА</span>` + reasonText.replace('[ПАХАНКА] ', '');
+      }
+
+      newHTML += `<tr><td>${dateStr}</td><td>${log.callsign}</td><td style="color:${amtCol}">${amtStr} руб.</td><td style="text-align:left;">${reasonText}</td></tr>`;
     });
   }
   tbody.innerHTML = newHTML;
@@ -1274,7 +1348,7 @@ window.onload = () => {
       if (currentTab === 'faction-tasks' && currentFactionTaskId === null) loadFactionTasks(true);
       if (currentTab === 'stalkers' && currentStalkerId === null) loadStalkers(true); 
       if (currentTab === 'housing') loadHousing(true);
-      if (currentTab === 'members-crm') {
+      if (currentTab === 'members-crm' || currentTab === 'finance') {
           loadMembersList(true);
           if (document.getElementById('memberProfileModal').style.display === 'flex' && currentMemberCallsign) {
               loadMemberTasksForProfile(currentMemberCallsign);

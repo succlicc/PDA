@@ -109,6 +109,24 @@
     <button class="submit-btn" id="submitBtn" onclick="submitOperation()">Внести в общак</button>
     <div id="message"></div>
 
+    <!-- УЧЕТ ХАБАРА (БЕЗ ОБЩАКА) -->
+    <div style="margin-top: 25px; border-top: 1px dashed #2a6b2a; padding-top: 15px;">
+      <h3 style="text-align: center; margin-top: 0; color: #55ccff;">Вклад в рейтинг (Без общака)</h3>
+      <label style="color: #55ccff;">Общая стоимость хабара</label>
+      <input type="number" id="habar_amount" placeholder="Например: 1000000" style="border-color: #55ccff;">
+      <label style="color: #55ccff;">Что принесли (Причина)</label>
+      <input type="text" id="habar_reason" placeholder="Например: 2 Снежинки, 1 Пламя" style="border-color: #55ccff;">
+      <label style="color: #55ccff;">Кто участвовал (Сумма поделится поровну):</label>
+      
+      <div id="habar_members_list" style="max-height: 140px; overflow-y: auto; background: #0a140a; border: 1px solid #1a3a1a; border-radius: 8px; padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+         <div style="text-align: center; grid-column: span 2; color: #555;">Загрузка состава...</div>
+      </div>
+      
+      <button class="submit-btn" id="btnSubmitHabar" style="background: #113344; border-color: #55ccff; color: #d0ffff;" onclick="submitHabarRating()">Зачислить в рейтинг</button>
+      <div id="habar_message" style="margin-top: 8px; text-align: center; font-weight: bold;"></div>
+    </div>
+
+    <!-- ПАХАНКА -->
     <div class="admin-only" style="margin-top: 25px; border-top: 1px dashed #555; padding-top: 15px;">
       <div class="pahanka-display">👑 Паханка: <span id="pahanki-obs">...</span> руб.</div>
       <label style="color: #ffaa00;">Сумма в Паханку (+/-)</label>

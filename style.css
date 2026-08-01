@@ -1,5 +1,8 @@
 /* --- СИСТЕМА ДОСТУПОВ --- */
 body:not(.is-admin) .admin-only { display: none !important; }
+body.is-admin .profile-photo { cursor: pointer; transition: 0.2s; }
+body.is-admin .profile-photo:hover { box-shadow: 0 0 15px #4CAF50; border-color: #4CAF50; transform: scale(1.05); }
+
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 body {
@@ -12,7 +15,10 @@ body {
 }
 
 .pda {
-  max-width: 1050px; width: 95%; height: 92vh; max-height: 850px;
+  max-width: 1350px; 
+  width: 98%; 
+  height: 95vh;      
+  max-height: 950px;
   display: flex; flex-direction: column;
   background: rgba(10, 20, 10, 0.96); border: 3px solid #2a6b2a; border-radius: 24px;
   box-shadow: 0 0 30px rgba(0,255,0,0.2), inset 0 0 20px rgba(0,255,0,0.1);
@@ -22,38 +28,76 @@ body {
 
 .pda-header { text-align: center; margin-bottom: 8px; position: relative; flex-shrink: 0; }
 
+/* ОБНОВЛЕННЫЙ ЗАГОЛОВОК */
 .version { 
-  font-size: 1.3rem; letter-spacing: 5px; color: #aaffaa; 
-  text-shadow: 0 0 10px #0f0; font-weight: bold; 
+  font-size: 1.8rem; 
+  letter-spacing: 6px; 
+  color: #aaffaa; 
+  text-shadow: 0 0 15px #0f0, 0 0 5px #4CAF50; 
+  font-weight: bold; 
+  margin-bottom: 5px;
 }
 
 .sync-status { font-size: 0.7rem; color: #5a8a5a; transition: all 0.3s; }
 
-/* --- РАДАР ОНЛАЙНА --- */
 .online-radar {
   position: fixed; 
   top: 15px;       
   left: 15px;      
   width: 140px;
-  background: rgba(5, 15, 5, 0.85);
-  border: 1px solid #4CAF50;
+  background: rgba(5, 15, 5, 0.4); 
+  border: 1px solid rgba(76, 175, 80, 0.4);
   border-radius: 12px;
   padding: 10px;
   z-index: 1000;   
-  box-shadow: 0 0 15px rgba(0, 255, 0, 0.15);
-  backdrop-filter: blur(3px);
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.1);
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
+}
+.online-radar:hover {
+  background: rgba(5, 15, 5, 0.9);
+  border: 1px solid #4CAF50;
 }
 @media (max-width: 800px) {
-  .online-radar {
-    top: auto;
-    bottom: 15px;
-    left: 15px;
-    width: 110px;
-    opacity: 0.5;
-    transition: 0.3s;
-  }
+  .online-radar { top: auto; bottom: 15px; left: 15px; width: 110px; opacity: 0.5; }
   .online-radar:hover { opacity: 1; }
 }
+
+/* КАЛЬКУЛЯТОР */
+.calc-widget {
+  position: fixed; 
+  bottom: 20px; 
+  right: 20px; 
+  background: rgba(10, 20, 10, 0.8);
+  border: 1px solid #4CAF50;
+  border-radius: 12px;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+  width: 200px;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.calc-header {
+  padding: 8px 12px; background: #1a3a1a; color: #aaffaa; font-weight: bold;
+  font-size: 0.9rem; cursor: pointer; display: flex; justify-content: space-between;
+}
+.calc-header:hover { background: #2a552a; }
+.calc-body { padding: 10px; display: none; } 
+#calc-display {
+  width: 100%; background: #0f1f0f; border: 1px solid #2a6b2a; color: #b3ffb3;
+  font-size: 1.2rem; text-align: right; margin-bottom: 10px; border-radius: 6px; padding: 5px;
+}
+.calc-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.calc-buttons button {
+  background: #1a3a1a; border: 1px solid #2a6b2a; color: #fff; padding: 8px 0;
+  border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; transition: 0.2s; margin:0; width:100%;
+}
+.calc-buttons button:hover { background: #2b672b; }
+.calc-buttons .op-btn { background: #552a2a; color: #ffcccc; border-color: #ff6666; }
+.calc-buttons .calc-btn { background: #4CAF50; color: #000; }
+.calc-buttons .clear-btn { background: #aa7700; color: #fff; }
+
 
 .obshchak {
   font-size: 2.6em; font-weight: bold; text-align: center; margin: 10px 0 15px;
@@ -84,6 +128,13 @@ body {
 }
 .tabs button.active { color: #b3ffb3; border-bottom: 3px solid #4CAF50; text-shadow: 0 0 10px #0f0; background: rgba(0,0,0,0.3); }
 
+.base-tabs button {
+  padding: 8px 5px; background: #111a11; border: 1px solid #2a6b2a; color: #7aad7a;
+  font-family: inherit; font-size: 0.95rem; cursor: pointer; transition: 0.2s;
+  font-weight: bold; border-radius: 8px;
+}
+.base-tabs button.active { color: #fff; border-color: #4CAF50; background: #1a3a1a; box-shadow: 0 0 10px rgba(0,255,0,0.2); }
+
 .tab-content { display: none; animation: fade 0.2s ease; flex: 1; overflow-y: auto; padding-right: 5px; }
 .tab-content.active { display: block; }
 
@@ -96,6 +147,55 @@ body {
   padding: 15px; text-align: center; transition: 0.2s; position: relative; cursor: pointer;
 }
 .card:hover { box-shadow: 0 0 15px rgba(0,255,0,0.3); border-color: #4CAF50; transform: translateY(-2px); }
+
+/* КОМПАКТНАЯ КАРТОЧКА МЭНА И ПОДСВЕТКА СВОЕЙ */
+.card.member-card {
+  min-width: 140px; 
+  padding: 10px;
+}
+.member-card .stalker-photo {
+  height: 120px;
+  margin-bottom: 5px;
+}
+.member-card h3 { font-size: 1.1rem !important; }
+
+.my-card {
+  border: 2px solid #ffaa00 !important;
+  box-shadow: 0 0 15px rgba(255, 170, 0, 0.4) !important;
+}
+.my-card-label {
+  background: #ffaa00;
+  color: #000;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: bold;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.mt-card {
+  background: #0a140a; border: 1px solid #2a6b2a; padding: 15px; border-radius: 12px;
+  text-align: left; position: relative; transition: 0.3s; margin-bottom: 10px;
+}
+.mt-card.completed { opacity: 0.5; border-color: #333; }
+.status-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 0.75rem; text-transform: uppercase;
+}
+.status-active { background: #2a552a; color: #aaffaa; }
+.status-review { background: #aa7700; color: #ffffaa; box-shadow: 0 0 10px rgba(170,119,0,0.5); }
+.status-completed { background: #222; color: #888; border: 1px solid #444; }
+
+.mt-comment-box {
+  width: 100%; background: #111a11; border: 1px solid #3a7a3a; color: #b3ffb3;
+  padding: 10px; border-radius: 8px; margin-bottom: 10px; resize: vertical; font-family: inherit; box-sizing: border-box;
+}
+.mt-comment-box[readonly] { border-color: #223322; color: #88a888; cursor: default; }
+.mt-comment-box:focus:not([readonly]) { border-color: #4CAF50; outline: none; box-shadow: 0 0 10px #0f0; }
 
 .stalker-photo {
   width: 100%; height: 180px; background: #0f1f0f; border-radius: 8px; margin-bottom: 10px;

@@ -16,6 +16,7 @@ let stockSortDir = 1;
 let currentBaseCategory = 'friendly'; 
 
 let allMembersList = [];
+let allStalkersList = []; // Добавили массив сталкеров для безопасной загрузки
 let currentMemberCallsign = null;
 let currentMemberTasksList = [];
 
@@ -46,7 +47,7 @@ function checkSession() {
     applyRoles(window.currentUser.role);
     fetchObshchak();
     updateOnlineStatus();
-    loadMembersList(true); // Загружаем состав сразу для чекбоксов хабара
+    loadMembersList(true); 
   }
 }
 
@@ -190,7 +191,6 @@ async function submitOperation() {
   fetchObshchak(); setTimeout(() => { msgDiv.textContent = ''; }, 2000);
 }
 
-// НОВАЯ ФУНКЦИЯ: УЧЕТ ХАБАРА В РЕЙТИНГ (БЕЗ ОБЩАКА)
 async function submitHabarRating() {
   if (!window.currentUser) return;
   let amount = parseInt(document.getElementById('habar_amount').value);
@@ -213,11 +213,7 @@ async function submitHabarRating() {
   let logsToInsert = [];
 
   checkboxes.forEach(cb => {
-      logsToInsert.push({
-          callsign: cb.value,
-          amount: splitAmount,
-          reason: `[РЕЙТИНГ] ${reason}`
-      });
+      logsToInsert.push({ callsign: cb.value, amount: splitAmount, reason: `[РЕЙТИНГ] ${reason}` });
   });
 
   const { error } = await db.from('obshchak_logs').insert(logsToInsert);
@@ -296,6 +292,7 @@ function closeModal(modalId) {
   if(modalId === 'stalkerModal') { document.getElementById('newTaskForm').style.display = 'none'; currentStalkerId = null; }
   if(modalId === 'factionTaskModal') { currentFactionTaskId = null; }
   if(modalId === 'memberProfileModal') { currentMemberCallsign = null; document.getElementById('newMemberTaskForm').style.display = 'none'; }
+  if(modalId === 'editMemberPhotoModal') { document.getElementById('emp_photo_base64').value = ''; document.getElementById('emp_preview').style.display = 'none'; }
 }
 
 /* ============ СКЛАД ============ */
@@ -506,11 +503,13 @@ function filterStalkers() {
   });
 }
 
+// ПЕРЕПИСАННАЯ ЗАГРУЗКА СТАЛКЕРОВ ДЛЯ БЕЗОПАСНОСТИ DOM
 async function loadStalkers(isTick = false) {
   let grid = document.getElementById('stalkersGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка базы...</div>';
   
   const { data } = await db.from('stalkers').select('*').order('id', { ascending: false });
+  allStalkersList = data || []; // Сохраняем в глобальный массив
   
   const { data: tasksData } = await db.from('stalker_tasks').select('stalker_id').eq('is_completed', false);
   let activeCounts = {};
@@ -519,19 +518,18 @@ async function loadStalkers(isTick = false) {
   }
 
   let newHTML = '';
-  if (!data || data.length === 0) { 
+  if (!allStalkersList || allStalkersList.length === 0) { 
       newHTML = '<div style="text-align: center; width: 100%;">База пуста.</div>'; 
   } else {
-    data.forEach(s => {
+    allStalkersList.forEach(s => {
       let cat = s.category || 'friendly';
       if (cat !== currentBaseCategory) return; 
 
       let statusColor = s.status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
-      let safeReason = (s.reason || '').replace(/'/g, "\\'");
-      let safeName = s.nickname.replace(/'/g, "\\'");
       
+      // БОЛЬШЕ НИКАКИХ BASE64 в ONCLICK! Передаем только ID.
       newHTML += `
-        <div class="card" onclick="openStalkerModal(${s.id}, '${safeName}', '${s.status}', ${s.completed_tasks}, ${s.failed_tasks || 0}, '${s.photo_url || ''}', '${cat}', '${safeReason}')">
+        <div class="card" onclick="openStalkerModal(${s.id})">
           <div class="stalker-photo">${s.photo_url ? `<img src="${s.photo_url}">` : '<span style="color: #2a6b2a;">[Нет фото]</span>'}</div>
           <h3 style="margin: 5px 0; color: #b3ffb3;">${cat === 'enemy' ? '💀' : '☢️'} ${s.nickname}</h3>`;
           
@@ -598,35 +596,45 @@ async function deleteCurrentStalker() {
     }
 }
 
-async function openStalkerModal(id, name, status, completed, failed, photo, category, reason) {
-  currentStalkerId = id; document.getElementById('stalkerModal').style.display = 'flex';
-  document.getElementById('m_name').textContent = name; 
-  document.getElementById('m_completed').textContent = completed;
-  document.getElementById('m_failed').textContent = failed;
+// ПЕРЕПИСАНО: Достает данные сталкера из массива, а не из HTML
+async function openStalkerModal(id) {
+  currentStalkerId = id; 
+  let s = allStalkersList.find(x => x.id === id);
+  if (!s) return;
+
+  document.getElementById('stalkerModal').style.display = 'flex';
+  document.getElementById('m_name').textContent = s.nickname; 
+  document.getElementById('m_completed').textContent = s.completed_tasks;
+  document.getElementById('m_failed').textContent = s.failed_tasks || 0;
   
   let photoContainer = document.getElementById('m_photo');
-  if (photo && photo !== 'null') photoContainer.innerHTML = `<img src="${photo}" style="width:100%; height:100%; object-fit:cover;">`; 
-  else photoContainer.innerHTML = `<span style="color: #2a6b2a; font-size:0.8rem;">[Нет фото]</span>`;
+  if (s.photo_url && s.photo_url !== 'null' && s.photo_url !== '') {
+      photoContainer.innerHTML = `<img src="${s.photo_url}" style="width:100%; height:100%; object-fit:cover;">`; 
+  } else {
+      photoContainer.innerHTML = `<span style="color: #2a6b2a; font-size:0.8rem;">[Нет фото]</span>`;
+  }
 
   let statusContainer = document.getElementById('m_status_container');
   let statsLine = document.getElementById('m_stats_line');
   let tasksWrapper = document.getElementById('m_tasks_wrapper');
 
-  if (category === 'friendly') {
+  let cat = s.category || 'friendly';
+
+  if (cat === 'friendly') {
       statsLine.style.display = 'block';
       tasksWrapper.style.display = 'block';
       if (document.body.classList.contains('is-admin')) {
-        let isTrust = status === 'Доверенный' ? 'selected' : ''; let isNotTrust = status === 'Не доверенный' ? 'selected' : '';
+        let isTrust = s.status === 'Доверенный' ? 'selected' : ''; let isNotTrust = s.status === 'Не доверенный' ? 'selected' : '';
         statusContainer.innerHTML = `<select onchange="changeStalkerStatus(${id}, this.value)" style="width: auto; padding: 5px; font-size: 0.9rem;"><option value="Доверенный" ${isTrust}>Доверенный</option><option value="Не доверенный" ${isNotTrust}>Не доверенный</option></select>`;
       } else {
-        let color = status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
-        statusContainer.innerHTML = `<span style="color:${color}; font-weight:bold;">${status}</span>`;
+        let color = s.status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
+        statusContainer.innerHTML = `<span style="color:${color}; font-weight:bold;">${s.status}</span>`;
       }
       loadStalkerTasks(id);
   } else {
       statsLine.style.display = 'none';
       tasksWrapper.style.display = 'none';
-      statusContainer.innerHTML = `<span style="color:#ff6666; font-weight:bold;">Причина: ${reason || 'Не указано'}</span>`;
+      statusContainer.innerHTML = `<span style="color:#ff6666; font-weight:bold;">Причина: ${s.reason || 'Не указано'}</span>`;
   }
 }
 
@@ -914,6 +922,7 @@ async function deleteCurrentFactionTask() {
    ЛИЧНЫЙ СОСТАВ И ЗАДАЧИ (РОСТЕР)
    ================================ */
 
+// ПЕРЕПИСАНО: Достает данные бойца из массива, а не из HTML (Безопасно для памяти)
 async function loadMembersList(isTick = false) {
   let grid = document.getElementById('membersGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка состава...</div>';
@@ -924,7 +933,6 @@ async function loadMembersList(isTick = false) {
     allMembersList = data.filter(m => m.role !== 'curator');
     allMembersList.sort((a, b) => getRankWeight(a.rank) - getRankWeight(b.rank));
     
-    // Обновляем чекбоксы в разделе Хабар
     let habarContainer = document.getElementById('habar_members_list');
     if (habarContainer) {
         let checked = Array.from(habarContainer.querySelectorAll('input.habar-cb:checked')).map(cb => cb.value);
@@ -955,12 +963,11 @@ async function loadMembersList(isTick = false) {
     }
 
     let html = '';
+    let isAdmin = document.body.classList.contains('is-admin');
 
     allMembersList.forEach(m => {
         let isMe = (m.callsign === window.currentUser.callsign);
         let safeName = m.callsign.replace(/'/g, "\\'");
-        let safeRank = m.rank.replace(/'/g, "\\'");
-        let safePhoto = m.photo_url ? m.photo_url.replace(/'/g, "\\'") : '';
         
         let actCount = actCounts[m.callsign] || 0;
         let revCount = reviewCounts[m.callsign] || 0;
@@ -969,8 +976,15 @@ async function loadMembersList(isTick = false) {
         let activeBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ffaa00; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Задач в работе">${actCount}</div>` : '';
         let reviewBadge = revCount > 0 ? `<div style="position: absolute; top:-5px; left:-5px; background:#4CAF50; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Сдано на проверку">${revCount}</div>` : '';
         
+        let onclickAction = '';
+        if (isMe || isAdmin) {
+            onclickAction = `onclick="openMemberProfile('${safeName}')"`;
+        } else {
+            onclickAction = `onclick="alert('Доступ закрыт. Это ПДА бойца ${safeName}.')"`;
+        }
+
         html += `
-        <div class="card member-card ${isMe ? 'my-card' : ''}" onclick="openMemberProfile('${safeName}', '${safeRank}', '${safePhoto}')" style="position:relative;">
+        <div class="card member-card ${isMe ? 'my-card' : ''}" ${onclickAction} style="position:relative;">
           ${isMe ? '<div class="my-card-label">ЭТО ТЫ</div>' : ''}
           ${reviewBadge}
           ${activeBadge}
@@ -988,15 +1002,18 @@ async function loadMembersList(isTick = false) {
   }
 }
 
-function openMemberProfile(callsign, rank, photo) {
+function openMemberProfile(callsign) {
   currentMemberCallsign = callsign;
+  let m = allMembersList.find(x => x.callsign === callsign);
+  if (!m) return;
+
   document.getElementById('memberProfileModal').style.display = 'flex';
-  document.getElementById('mp_name').textContent = callsign;
-  document.getElementById('mp_rank').textContent = rank;
+  document.getElementById('mp_name').textContent = m.callsign;
+  document.getElementById('mp_rank').textContent = m.rank;
   
   let photoContainer = document.getElementById('mp_photo');
-  if (photo && photo !== '') {
-      photoContainer.innerHTML = `<img src="${photo}" style="width:100%; height:100%; object-fit:cover;">`; 
+  if (m.photo_url && m.photo_url !== '') {
+      photoContainer.innerHTML = `<img src="${m.photo_url}" style="width:100%; height:100%; object-fit:cover;">`; 
   } else {
       photoContainer.innerHTML = `<span style="color: #2a6b2a; font-size:0.8rem; text-align:center;">Изменить<br>Фото</span>`;
   }
@@ -1037,15 +1054,33 @@ function openMemberPhotoModal() {
   document.getElementById('editMemberPhotoModal').style.display = 'flex';
 }
 
+// ПЕРЕПИСАНО: Добавлена блокировка кнопки и показ ошибки БД, если не отключен RLS
 async function saveMemberPhoto() {
   let photoBase64 = document.getElementById('emp_photo_base64').value;
   if (!photoBase64) return alert('Сначала вставь картинку (Ctrl+V)!');
   
-  await db.from('freedom_members').update({ photo_url: photoBase64 }).eq('callsign', currentMemberCallsign);
+  let btn = event.target;
+  let oldText = btn.innerHTML;
+  btn.innerHTML = 'Загрузка...';
+  btn.disabled = true;
+
+  const { error } = await db.from('freedom_members').update({ photo_url: photoBase64 }).eq('callsign', currentMemberCallsign);
+  
+  btn.innerHTML = oldText;
+  btn.disabled = false;
+
+  if (error) {
+      alert('Ошибка при сохранении фото: ' + error.message + '\n\nПроверь, отключен ли RLS для таблицы freedom_members в Supabase!');
+      return;
+  }
   
   let photoContainer = document.getElementById('mp_photo');
   photoContainer.innerHTML = `<img src="${photoBase64}" style="width:100%; height:100%; object-fit:cover;">`;
   
+  // Обновляем фото в массиве, чтобы не ждать тика
+  let member = allMembersList.find(m => m.callsign === currentMemberCallsign);
+  if (member) member.photo_url = photoBase64;
+
   closeModal('editMemberPhotoModal');
   loadMembersList(true); 
 }
@@ -1110,7 +1145,7 @@ async function loadMemberTasksForProfile(callsign) {
           }
           actionBtns += '</div>';
 
-          let readOnlyAttr = (!isMine && !isAdmin) ? 'readonly' : '';
+          let readOnlyAttr = (!isMine) ? 'readonly' : '';
           let placeholderAttr = isMine ? 'Напиши сюда свой отчет или комментарий по задаче...' : 'Боец пока ничего не написал.';
           
           html += `
@@ -1339,7 +1374,11 @@ window.onload = () => {
   setInterval(() => {
     let activeTag = document.activeElement ? document.activeElement.tagName : '';
     let isTyping = (activeTag === 'INPUT' || activeTag === 'TEXTAREA');
-    if (isTyping) return;
+    
+    // ПУНКТ 1: УМНАЯ ЗАМОРОЗКА. Тик не обновляет списки, если открыто окно редактирования фото
+    let isPhotoModalOpen = document.getElementById('editMemberPhotoModal').style.display === 'flex';
+    
+    if (isTyping || isPhotoModalOpen) return;
 
     if (document.getElementById('main-app').style.display === 'flex') {
       fetchObshchak(); 

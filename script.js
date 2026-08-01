@@ -903,7 +903,6 @@ async function loadMembersList(isTick = false) {
         let revCount = reviewCounts[m.callsign] || 0;
         let compCount = compCounts[m.callsign] || 0;
         
-        // Значки для админов и юзеров
         let activeBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ffaa00; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Задач в работе">${actCount}</div>` : '';
         let reviewBadge = revCount > 0 ? `<div style="position: absolute; top:-5px; left:-5px; background:#4CAF50; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Сдано на проверку">${revCount}</div>` : '';
         
@@ -1035,7 +1034,7 @@ async function loadMemberTasksForProfile(callsign) {
           
           if (isAdmin) {
               if (t.status !== 'completed') {
-                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Принять (Готово)</button>`;
+                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Закрыть задачу</button>`;
               }
               if (t.status === 'review') {
                   actionBtns += `<button class="qty-btn" style="background: #552a2a; color:#ffcccc;" onclick="setMemberTaskStatus(${t.id}, 'active')">❌ Отклонить отчет</button>`;
@@ -1048,7 +1047,7 @@ async function loadMemberTasksForProfile(callsign) {
           }
           actionBtns += '</div>';
 
-          let readOnlyAttr = (!isMine) ? 'readonly' : '';
+          let readOnlyAttr = (!isMine && !isAdmin) ? 'readonly' : '';
           let placeholderAttr = isMine ? 'Напиши сюда свой отчет или комментарий по задаче...' : 'Боец пока ничего не написал.';
           
           html += `
@@ -1255,8 +1254,6 @@ async function loadHistory(isTick = false) {
   tbody.innerHTML = newHTML;
 }
 
-JavaScript
-
 window.onload = () => {
   checkSession(); 
 
@@ -1290,7 +1287,7 @@ window.onload = () => {
     if (document.getElementById('main-app').style.display === 'flex') {
       updateOnlineStatus();
     }
-  }, 15000); 
+  }, 15000);
 };
 
 document.addEventListener('contextmenu', event => event.preventDefault()); 

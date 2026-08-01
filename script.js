@@ -1255,6 +1255,8 @@ async function loadHistory(isTick = false) {
   tbody.innerHTML = newHTML;
 }
 
+JavaScript
+
 window.onload = () => {
   checkSession(); 
 
@@ -1282,13 +1284,13 @@ window.onload = () => {
           }
       }
     }
-  }, 30000); 
+  }, 8000); 
 
   setInterval(() => {
     if (document.getElementById('main-app').style.display === 'flex') {
       updateOnlineStatus();
     }
-  }, 45000);
+  }, 15000); 
 };
 
 document.addEventListener('contextmenu', event => event.preventDefault()); 

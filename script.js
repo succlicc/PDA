@@ -592,7 +592,7 @@ async function loadStalkerTasks(stalkerId) {
   
   data.forEach(t => {
     let isGiver = t.giver === window.currentUser.callsign;
-    let canEdit = isAdmin || isGiver; // ПУНКТ 4: Кто выдал, тот и рулит
+    let canEdit = isAdmin || isGiver; 
 
     let giverInfo = `<div style="font-size: 0.75rem; color: #ffaa00; margin-bottom: 5px;">Выдал: ${t.giver}</div>`;
     let deadlineColor = '#aaffaa'; let displayDate = t.deadline; let isLate = false;
@@ -618,13 +618,11 @@ async function loadStalkerTasks(stalkerId) {
 
     let actionBtn = '';
     if (!t.is_completed) {
-        // ПУНКТ 2: Закрывать (успех/провал) могут ВСЕ Мэны
         actionBtn = `
           <button class="qty-btn" style="background:#1a3a1a; padding: 4px 10px; font-size: 0.8rem;" onclick="completeTask(${t.id}, ${stalkerId}, ${isLate}, '${safeTitle}')">✅</button>
           <button class="qty-btn" style="background:#552a2a; color:#ffcccc; padding: 4px 10px; font-size: 0.8rem; margin-left:5px;" onclick="failTask(${t.id}, ${stalkerId}, '${safeTitle}')">❌</button>
         `;
     } else {
-       // ПУНКТ 3: Новые надписи завершения
        if (t.title.includes('[ПРОВАЛ]')) actionBtn = `<span style="color:#ff6666; font-size: 0.9rem;">❌ Задание провалено</span>`;
        else if (t.title.includes('[ОПОЗДАНИЕ]')) actionBtn = `<span style="color:#ffaa00; font-size: 0.9rem;">⚠️ Задание с опозданием</span>`;
        else actionBtn = `<span style="color:#aaffaa; font-size: 0.9rem;">✓ Задание завершено</span>`;
@@ -634,7 +632,6 @@ async function loadStalkerTasks(stalkerId) {
        }
     }
 
-    // Редактировать могут только Авторы или Админы
     let editBtn = (canEdit && !t.is_completed) ? `<button class="qty-btn" style="background:transparent; color:#ffaa00; border:none; padding: 2px 6px; font-size: 1rem;" onclick="openEditTaskModal('personal', ${t.id}, '${cleanTitle.replace(/'/g, "\\'")}', '${t.deadline}', '${safeReward}', '', ${stalkerId})">✏️</button>` : '';
     let deleteBtn = canEdit ? `<button class="qty-btn" style="background:transparent; color:#ff6666; border:none; padding: 2px 6px; margin-left:5px; font-size: 1rem;" onclick="deleteStalkerTask(${t.id}, ${stalkerId}, ${t.is_completed}, '${safeTitle}')">✖</button>` : '';
 
@@ -880,11 +877,14 @@ async function loadMembersList(isTick = false) {
     
     const { data: tasksData } = await db.from('member_tasks').select('assigned_to, status');
     let actCounts = {};
+    let reviewCounts = {};
     let compCounts = {};
     if (tasksData) {
         tasksData.forEach(t => { 
             if (t.status === 'completed') {
                 compCounts[t.assigned_to] = (compCounts[t.assigned_to] || 0) + 1;
+            } else if (t.status === 'review') {
+                reviewCounts[t.assigned_to] = (reviewCounts[t.assigned_to] || 0) + 1;
             } else {
                 actCounts[t.assigned_to] = (actCounts[t.assigned_to] || 0) + 1; 
             }
@@ -900,21 +900,25 @@ async function loadMembersList(isTick = false) {
         let safePhoto = m.photo_url ? m.photo_url.replace(/'/g, "\\'") : '';
         
         let actCount = actCounts[m.callsign] || 0;
+        let revCount = reviewCounts[m.callsign] || 0;
         let compCount = compCounts[m.callsign] || 0;
         
-        let alertBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ff3333; color:#fff; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;">${actCount}</div>` : '';
+        // Значки для админов и юзеров
+        let activeBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ffaa00; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Задач в работе">${actCount}</div>` : '';
+        let reviewBadge = revCount > 0 ? `<div style="position: absolute; top:-5px; left:-5px; background:#4CAF50; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Сдано на проверку">${revCount}</div>` : '';
         
         html += `
         <div class="card member-card ${isMe ? 'my-card' : ''}" onclick="openMemberProfile('${safeName}', '${safeRank}', '${safePhoto}')" style="position:relative;">
           ${isMe ? '<div class="my-card-label">ЭТО ТЫ</div>' : ''}
-          ${alertBadge}
+          ${reviewBadge}
+          ${activeBadge}
           <div class="stalker-photo">${m.photo_url ? `<img src="${m.photo_url}">` : '<span style="color: #2a6b2a;">[Нет]</span>'}</div>
           <h3 style="margin: 5px 0; color: #b3ffb3; font-size:1.1rem;">${m.callsign}</h3>
           <p style="margin: 0 0 5px; color: #ffaa00; font-size: 0.85rem; font-weight:bold;">${m.rank}</p>
           
           <div style="font-size: 0.8rem; color: #8ab88a; background: rgba(0,0,0,0.5); padding: 4px; border-radius: 6px;">
             В работе: <span style="color:#ffaa00; font-weight:bold;">${actCount}</span><br>
-            Готово: <span style="color:#aaffaa; font-weight:bold;">${compCount}</span>
+            На проверке: <span style="color:#aaffaa; font-weight:bold;">${revCount}</span>
           </div>
         </div>`;
     });
@@ -1025,14 +1029,13 @@ async function loadMemberTasksForProfile(callsign) {
           if (isMine) {
               actionBtns += `<button class="qty-btn" id="mt_btn_save_${t.id}" style="background: #2a552a;" onclick="saveMemberTaskComment(${t.id})">💾 Сохранить отчет</button>`;
               if (t.status === 'active') {
-                  // ПУНКТ 3: УМНАЯ ОТПРАВКА НА ПРОВЕРКУ (сначала сохраняем текст, потом меняем статус)
                   actionBtns += `<button class="qty-btn" style="background: #aa7700; color:#fff;" onclick="submitReviewMemberTask(${t.id})">📤 Отправить на проверку</button>`;
               }
           }
           
           if (isAdmin) {
               if (t.status !== 'completed') {
-                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Закрыть задачу</button>`;
+                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Принять (Готово)</button>`;
               }
               if (t.status === 'review') {
                   actionBtns += `<button class="qty-btn" style="background: #552a2a; color:#ffcccc;" onclick="setMemberTaskStatus(${t.id}, 'active')">❌ Отклонить отчет</button>`;
@@ -1045,7 +1048,7 @@ async function loadMemberTasksForProfile(callsign) {
           }
           actionBtns += '</div>';
 
-          let readOnlyAttr = (!isMine && !isAdmin) ? 'readonly' : '';
+          let readOnlyAttr = (!isMine) ? 'readonly' : '';
           let placeholderAttr = isMine ? 'Напиши сюда свой отчет или комментарий по задаче...' : 'Боец пока ничего не написал.';
           
           html += `
@@ -1074,6 +1077,7 @@ async function loadMemberTasksForProfile(callsign) {
 }
 
 async function submitNewMemberTask() {
+  if (!document.body.classList.contains('is-admin')) return alert('Только админ может выдавать задания!');
   if (!currentMemberCallsign) return;
   let title = document.getElementById('nmt_title').value.trim();
   let desc = document.getElementById('nmt_desc').value.trim();
@@ -1105,7 +1109,6 @@ async function setMemberTaskStatus(id, newStatus) {
   loadMembersList(true);
 }
 
-// ПУНКТ 3: Отправить на проверку (Сразу сохраняет текст, потом меняет статус)
 async function submitReviewMemberTask(id) {
   let textarea = document.getElementById('mt_comment_' + id);
   let comment = textarea ? textarea.value.trim() : '';

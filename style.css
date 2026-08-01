@@ -32,8 +32,8 @@ body {
 /* --- РАДАР ОНЛАЙНА --- */
 .online-radar {
   position: fixed; 
-  top: 280px;       
-  left: 320px;      
+  top: 15px;       
+  left: 15px;      
   width: 140px;
   background: rgba(5, 15, 5, 0.85);
   border: 1px solid #4CAF50;

@@ -8,7 +8,6 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☢️</text></svg>">
   <title>PDA Freedom</title>
   
-  <!-- ПОДКЛЮЧАЕМ ДИЗАЙН -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,14 +17,44 @@
   <div style="font-size: 0.8rem; color: #aaffaa; border-bottom: 1px dashed #2a6b2a; padding-bottom: 5px; margin-bottom: 8px; font-weight: bold; text-align: left;">
     📶 В сети: <span id="online-count">1</span>
   </div>
-  <div id="online-list" style="font-size: 0.8rem; color: #8ab88a; max-height: 120px; overflow-y: auto; text-align: left;">
-    <!-- Тут будут юзеры -->
+  <div id="online-list" style="font-size: 0.8rem; color: #8ab88a; max-height: 120px; overflow-y: auto; text-align: left;"></div>
+</div>
+
+<!-- КАЛЬКУЛЯТОР (ВИДЖЕТ) -->
+<div id="calc-widget" class="calc-widget" style="display: none;">
+  <div class="calc-header" onclick="toggleCalc()">
+    <span>🖩 Калькулятор</span>
+    <span id="calc-toggle-icon">▲</span>
+  </div>
+  <div id="calc-body" class="calc-body">
+    <input type="text" id="calc-display" readonly>
+    <div class="calc-buttons">
+      <button onclick="calcAppend('7')">7</button>
+      <button onclick="calcAppend('8')">8</button>
+      <button onclick="calcAppend('9')">9</button>
+      <button onclick="calcAppend('/')" class="op-btn">÷</button>
+      
+      <button onclick="calcAppend('4')">4</button>
+      <button onclick="calcAppend('5')">5</button>
+      <button onclick="calcAppend('6')">6</button>
+      <button onclick="calcAppend('*')" class="op-btn">×</button>
+      
+      <button onclick="calcAppend('1')">1</button>
+      <button onclick="calcAppend('2')">2</button>
+      <button onclick="calcAppend('3')">3</button>
+      <button onclick="calcAppend('-')" class="op-btn">−</button>
+      
+      <button onclick="calcClear()" class="clear-btn">C</button>
+      <button onclick="calcAppend('0')">0</button>
+      <button onclick="calcCalculate()" class="calc-btn">=</button>
+      <button onclick="calcAppend('+')" class="op-btn">+</button>
+    </div>
   </div>
 </div>
 
 <!-- ЭКРАН АВТОРИЗАЦИИ -->
 <div class="pda" id="login-screen" style="max-width: 400px; margin: auto; text-align: center; height: auto; overflow-y: auto;">
-  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 1.5A</div>
+  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 2.2 CRM</div>
   <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
   
   <label>Позывной (Логин)</label>
@@ -39,13 +68,13 @@
 
 <!-- ГЛАВНЫЙ ИНТЕРФЕЙС КПК -->
 <div class="pda" id="main-app" style="display: none;">
-  <div class="pda-header">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-      <div class="version">PDA FREEDOM 1.5A</div>
+  <div class="pda-header" style="text-align: center; margin-bottom: 15px; border-bottom: 1px solid #2a6b2a; padding-bottom: 10px;">
+    <div class="version">PDA FREEDOM 2.2 CRM</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
       <div class="sync-status">🟢 В сети</div>
-    </div>
-    <div style="text-align: right; font-size: 0.8rem; color: #8ab88a; margin-bottom: 5px;">
-      <span id="userGreeting"></span> | <a href="#" onclick="logout()" style="color: #ff6666; text-decoration: none; font-weight: bold;">Выйти</a>
+      <div style="font-size: 0.8rem; color: #8ab88a;">
+        <span id="userGreeting"></span> | <a href="#" onclick="logout()" style="color: #ff6666; text-decoration: none; font-weight: bold;">Выйти</a>
+      </div>
     </div>
   </div>
 
@@ -57,7 +86,8 @@
   <div class="tabs">
     <button class="active" data-tab="finance">Финансы</button>
     <button data-tab="stock">Склад</button>
-    <button data-tab="faction-tasks">Задачи</button>
+    <button data-tab="faction-tasks">Глобальные</button>
+    <button data-tab="members-crm">Личный состав</button>
     <button data-tab="stalkers">База</button>
     <button data-tab="housing">Жилье</button>
     <button data-tab="rating">Рейтинг</button>
@@ -85,7 +115,7 @@
       <input type="number" id="p_amount" placeholder="Изменить паханку" style="border-color: #ffaa00;">
       <label style="color: #ffaa00;">Причина (пишется в логи)</label>
       <input type="text" id="p_reason" placeholder="Например: Выкуп туриста" style="border-color: #ffaa00;">
-      <button class="submit-btn" style="background: #332200; border-color: #ffaa00; color: #ffdd88;" onclick="submitPahanki()">Обновить Паханку</button>
+      <button class="submit-btn" id="submitPahankiBtn" style="background: #332200; border-color: #ffaa00; color: #ffdd88;" onclick="submitPahanki()">Обновить Паханку</button>
     </div>
   </div>
 
@@ -163,7 +193,7 @@
     </div>
   </div>
 
-  <!-- Задачи Группировки -->
+  <!-- Глобальные Задачи Группировки -->
   <div id="tab-faction-tasks" class="tab-content">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
       <h3 style="margin: 0;">Глобальные контракты</h3>
@@ -187,17 +217,35 @@
     <div class="card-grid" id="factionTasksGrid"><div style="text-align: center; width: 100%;">Загрузка...</div></div>
   </div>
 
+  <!-- ЛИЧНЫЙ СОСТАВ И ЗАДАЧИ (РОСТЕР) -->
+  <div id="tab-members-crm" class="tab-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h3 style="margin: 0;">Личный состав</h3>
+    </div>
+    <div class="card-grid" id="membersGrid"><div style="text-align: center; width: 100%;">Загрузка состава...</div></div>
+  </div>
+
   <!-- База Сталкеров -->
   <div id="tab-stalkers" class="tab-content">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
       <h3 style="margin: 0;">База Сталкеров</h3>
       <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('stalkerForm')">☢️ Добавить досье</button>
     </div>
+
+    <div class="base-tabs" id="baseTabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+      <button class="base-tab active" onclick="switchBaseCategory('friendly')" style="flex:1;">🤝 НАШИ</button>
+      <button class="base-tab" onclick="switchBaseCategory('enemy')" style="flex:1;">💀 ГАВНОЕДЫ (ЧС)</button>
+    </div>
     
     <input type="text" id="stalkerSearch" placeholder="Поиск по позывному..." oninput="filterStalkers()" style="margin-bottom: 15px; border-color: #5a8a5a;">
     
     <div id="stalkerForm" class="hidden-form">
+      <select id="s_category" onchange="toggleEnemyReason()" style="margin-bottom: 10px;">
+        <option value="friendly" selected>Сотрудничество (Наш)</option>
+        <option value="enemy">Черный список (Враг)</option>
+      </select>
       <input type="text" id="s_name" placeholder="Позывной сталкера" style="margin-bottom: 10px;">
+      <input type="text" id="s_reason" placeholder="Причина занесения в ЧС" style="display: none; margin-bottom: 10px; border-color:#ff6666;">
       <div class="paste-area" tabindex="0" id="pasteArea">
         📸 Кликни сюда и нажми <b>Ctrl+V</b> чтобы вставить фото
         <img id="previewImage" style="display:none; max-width: 100%; max-height: 150px; margin-top: 10px; border-radius: 8px;">
@@ -238,6 +286,54 @@
   </div>
 </div>
 
+<!-- МОДАЛЬНОЕ ОКНО: ДОСЬЕ БОЙЦА (РОСТЕР И ЗАДАЧИ) -->
+<div class="modal-overlay" id="memberProfileModal">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeModal('memberProfileModal')">✖</span>
+    
+    <div style="display: flex; gap: 20px; align-items: flex-start;">
+      <div id="mp_photo" class="profile-photo admin-editable" onclick="openMemberPhotoModal()" title="Изменить фото"></div>
+      <div style="flex: 1;">
+        <h2 style="margin: 0 0 5px; color: #b3ffb3;" id="mp_name">Позывной</h2>
+        <div style="color: #ffaa00; font-size: 1.1rem; font-weight: bold; margin-bottom: 10px;" id="mp_rank">Звание</div>
+      </div>
+    </div>
+    <hr style="border: 1px solid #2a6b2a; margin: 20px 0;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+      <h3 style="margin: 0;">Задачи бойца</h3>
+      <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('newMemberTaskForm')">➕ Выдать задание</button>
+    </div>
+
+    <!-- Форма выдачи задания бойцу -->
+    <div id="newMemberTaskForm" class="hidden-form" style="background: #0f1f0f;">
+      <input type="text" id="nmt_title" placeholder="Суть задачи (Кратко)" style="margin-bottom: 8px;">
+      <textarea id="nmt_desc" rows="3" placeholder="Подробное описание..." style="margin-bottom: 8px; resize: vertical;"></textarea>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem;">Важность:</label><input type="text" id="nmt_imp" placeholder="Напр. Высокая"></div>
+        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem;">Дедлайн:</label><input type="date" id="nmt_deadline"></div>
+      </div>
+      <button class="submit-btn" style="width: 100%; padding: 10px; margin: 10px 0 0;" onclick="submitNewMemberTask()">Назначить задачу</button>
+    </div>
+
+    <div id="mp_tasks_list"><div style="text-align: center; color: #888;">Загрузка задач...</div></div>
+  </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО: ИЗМЕНИТЬ ФОТО БОЙЦА -->
+<div class="modal-overlay" id="editMemberPhotoModal">
+  <div class="modal-content" style="max-width: 400px; text-align: center;">
+    <span class="close-btn" onclick="closeModal('editMemberPhotoModal')">✖</span>
+    <h3 style="margin-top: 0; color: #b3ffb3;">Фото для <span id="emp_name"></span></h3>
+    <div class="paste-area" tabindex="0" id="memberPasteArea">
+      📸 Кликни сюда и нажми <b>Ctrl+V</b> чтобы вставить фото
+      <img id="emp_preview" style="display:none; max-width: 100%; max-height: 150px; margin-top: 10px; border-radius: 8px;">
+    </div>
+    <input type="hidden" id="emp_photo_base64">
+    <button class="submit-btn" style="width: 100%; margin-top: 15px;" onclick="saveMemberPhoto()">Сохранить фото</button>
+  </div>
+</div>
+
 <!-- МОДАЛЬНОЕ ОКНО: ДОСЬЕ СТАЛКЕРА -->
 <div class="modal-overlay" id="stalkerModal">
   <div class="modal-content">
@@ -246,12 +342,15 @@
     <div style="display: flex; gap: 20px; align-items: flex-start;">
       <div id="m_photo" style="width: 120px; height: 120px; border: 1px solid #2a6b2a; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #000;"></div>
       <div style="flex: 1;">
-        <h2 id="m_name" style="margin: 0 0 10px; color: #b3ffb3;">Позывной</h2>
+        <h2 style="margin: 0 0 10px; color: #b3ffb3;">
+          <span id="m_name">Позывной</span>
+          <button class="qty-btn admin-only" style="background:transparent; border:1px solid #5a8a5a; font-size:0.8rem; margin-left:10px;" onclick="editStalkerProfile()">✏️</button>
+        </h2>
         <div id="m_status_container" style="margin-bottom: 10px;"></div>
         
-        <p style="margin: 0; color: #8ab88a; font-size: 0.9rem;">
-          Успех: <span id="m_completed" style="color:#aaffaa; font-weight:bold;">0</span> | 
-          Провал: <span id="m_failed" style="color:#ff6666; font-weight:bold;">0</span>
+        <p id="m_stats_line" style="margin: 0; color: #8ab88a; font-size: 0.9rem;">
+          Гуд: <span id="m_completed" style="color:#aaffaa; font-weight:bold;">0</span> | 
+          Факщит: <span id="m_failed" style="color:#ff6666; font-weight:bold;">0</span>
         </p>
 
         <button id="btn_delete_stalker" class="delete-stalker-btn admin-only" onclick="deleteCurrentStalker()">Удалить досье (Мертв)</button>
@@ -259,24 +358,26 @@
     </div>
     <hr style="border: 1px solid #2a6b2a; margin: 20px 0;">
     
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-      <h3 style="margin: 0;">Личные контракты</h3>
-      <div style="display: flex; gap: 10px;">
-        <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('newTaskForm')">➕ Выдать</button>
-        <button class="qty-btn" style="background: #aa5500; color: #fff;" onclick="givePodgon()">🎁 Дал подгон</button>
-      </div>
-    </div>
+    <div id="m_tasks_wrapper">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="margin: 0;">Личные контракты</h3>
+          <div style="display: flex; gap: 10px;">
+            <button class="qty-btn" style="background: #2a552a;" onclick="toggleForm('newTaskForm')">➕ Выдать</button>
+            <button class="qty-btn" style="background: #aa5500; color: #fff;" onclick="givePodgon()">🎁 Дал подгон</button>
+          </div>
+        </div>
 
-    <div id="newTaskForm" class="hidden-form" style="background: #0f1f0f;">
-      <input type="text" id="nt_title" placeholder="Задача" style="margin-bottom: 8px;">
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem;">Дедлайн:</label><input type="date" id="nt_deadline"></div>
-        <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem; color:transparent;">.</label><input type="text" id="nt_reward" placeholder="Награда (руб.)"></div>
-      </div>
-      <button class="submit-btn" style="width: 100%; padding: 10px; margin: 10px 0 0;" onclick="submitNewTask()">Назначить</button>
-    </div>
+        <div id="newTaskForm" class="hidden-form" style="background: #0f1f0f;">
+          <input type="text" id="nt_title" placeholder="Задача" style="margin-bottom: 8px;">
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem;">Дедлайн:</label><input type="date" id="nt_deadline"></div>
+            <div style="flex: 1;"><label style="margin:0 0 4px; font-size:0.8rem; color:transparent;">.</label><input type="text" id="nt_reward" placeholder="Награда (руб.)"></div>
+          </div>
+          <button class="submit-btn" style="width: 100%; padding: 10px; margin: 10px 0 0;" onclick="submitNewTask()">Назначить</button>
+        </div>
 
-    <div id="m_tasks_list"><div style="text-align: center; color: #888;">Загрузка...</div></div>
+        <div id="m_tasks_list"><div style="text-align: center; color: #888;">Загрузка...</div></div>
+    </div>
   </div>
 </div>
 
@@ -295,7 +396,40 @@
     <h4 style="margin: 0 0 10px; color: #5a8a5a;">Подробности:</h4>
     <div id="ft_m_desc" style="color: #aaffaa; font-size: 0.95rem; white-space: pre-wrap; background: #0a140a; padding: 15px; border-radius: 8px; border: 1px solid #1a3a1a;"></div>
     
-    <button class="delete-stalker-btn admin-only" style="width: 100%;" onclick="deleteCurrentFactionTask()">Удалить глобальную задачу</button>
+    <button class="delete-stalker-btn admin-only" style="width: 100%; background: #2a552a; border-color:#4CAF50; color:#fff;" onclick="openEditTaskModal('faction', currentFactionTaskId)">✏️ Редактировать</button>
+    <button class="delete-stalker-btn admin-only" style="width: 100%; margin-top: 10px;" onclick="deleteCurrentFactionTask()">Удалить глобальную задачу</button>
+  </div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАНИЕ ЗАДАЧИ (УНИВЕРСАЛЬНОЕ) -->
+<div class="modal-overlay" id="editTaskModal">
+  <div class="modal-content" style="max-width: 400px; background: #0a140a;">
+    <span class="close-btn" onclick="closeModal('editTaskModal')">✖</span>
+    <h2 style="margin-top: 0; color: #4CAF50;">Редактирование</h2>
+    <input type="hidden" id="et_id">
+    <input type="hidden" id="et_type">
+    <input type="hidden" id="et_stalker_id">
+    
+    <label>Суть / Название задачи</label>
+    <input type="text" id="et_title" style="margin-bottom: 10px;">
+    
+    <div id="et_desc_container">
+      <label>Подробности (Для глобалок и бойцов)</label>
+      <textarea id="et_desc" rows="3" style="margin-bottom: 10px;"></textarea>
+    </div>
+    
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+      <div style="flex:1;">
+        <label>Дедлайн</label>
+        <input type="date" id="et_deadline">
+      </div>
+      <div style="flex:1;">
+        <label>Награда / Важность</label>
+        <input type="text" id="et_reward">
+      </div>
+    </div>
+    
+    <button class="submit-btn" style="width: 100%; margin-top: 15px;" onclick="saveTaskEdit()">Сохранить изменения</button>
   </div>
 </div>
 
@@ -316,7 +450,6 @@
   </div>
 </div>
 
-<!-- ПОДКЛЮЧАЕМ БАЗУ И МОЗГИ -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
 

@@ -13,6 +13,27 @@ let currentStockData = [];
 let stockSortCol = 'name';
 let stockSortDir = 1; 
 
+let currentBaseCategory = 'friendly'; 
+
+let allMembersList = [];
+let currentMemberCallsign = null;
+let currentMemberTasksList = [];
+
+const rankWeights = {
+    'anarchist': 1,
+    'strong': 2,
+    'rastafarian': 3,
+    'technick': 4,
+    'guardian': 5,
+    'freeman': 6,
+    'weed': 7,
+    'seed': 8
+};
+function getRankWeight(rank) {
+    let r = rank.toLowerCase().trim();
+    return rankWeights[r] || 99; 
+}
+
 function checkSession() {
   let savedUser = localStorage.getItem('freedom_user');
   if (savedUser) {
@@ -20,6 +41,7 @@ function checkSession() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = 'flex';
     document.getElementById('onlineRadar').style.display = 'block';
+    document.getElementById('calc-widget').style.display = 'block';
     document.getElementById('userGreeting').textContent = `👋 Хай, ${window.currentUser.callsign} [${window.currentUser.rank}]`;
     applyRoles(window.currentUser.role);
     fetchObshchak();
@@ -35,6 +57,7 @@ async function logout() {
   window.currentUser = null;
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('onlineRadar').style.display = 'none';
+  document.getElementById('calc-widget').style.display = 'none';
   document.getElementById('login-screen').style.display = 'block';
 }
 
@@ -59,6 +82,7 @@ async function login() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
   document.getElementById('onlineRadar').style.display = 'block';
+  document.getElementById('calc-widget').style.display = 'block';
   document.getElementById('userGreeting').textContent = `👋 Хай, ${data.callsign} [${data.rank}]`;
   
   applyRoles(data.role); 
@@ -69,6 +93,31 @@ async function login() {
 function applyRoles(role) {
   if (role === 'admin' || role === 'curator') document.body.classList.add('is-admin');
   else document.body.classList.remove('is-admin');
+}
+
+/* ============ КАЛЬКУЛЯТОР ============ */
+function toggleCalc() {
+    let body = document.getElementById('calc-body');
+    let icon = document.getElementById('calc-toggle-icon');
+    if(body.style.display === 'none' || body.style.display === '') {
+        body.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        body.style.display = 'none';
+        icon.textContent = '▲';
+    }
+}
+function calcAppend(val) { document.getElementById('calc-display').value += val; }
+function calcClear() { document.getElementById('calc-display').value = ''; }
+function calcCalculate() {
+    try {
+        let expr = document.getElementById('calc-display').value;
+        let res = new Function('return ' + expr)();
+        if (res !== undefined) document.getElementById('calc-display').value = res;
+    } catch(e) {
+        document.getElementById('calc-display').value = 'Ошибка';
+        setTimeout(calcClear, 1500);
+    }
 }
 
 async function updateOnlineStatus() {
@@ -122,12 +171,20 @@ async function submitOperation() {
   let msgDiv = document.getElementById('message');
   if (isNaN(amount)) { msgDiv.textContent = 'Введи сумму!'; msgDiv.className = 'error-message'; return; }
   
-  let newTotal = lastObsValue + amount;
+  let btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+
+  const { data: latestData } = await db.from('global_state').select('obshchak_total').eq('id', 1).single();
+  let currentTotal = latestData ? latestData.obshchak_total : 0;
+  let newTotal = currentTotal + amount;
+  
   await db.from('global_state').update({ obshchak_total: newTotal }).eq('id', 1);
   if (!isSilent) await db.from('obshchak_logs').insert([{ callsign: window.currentUser.callsign, amount: amount, reason: reason }]);
   
   msgDiv.textContent = '✓ Операция проведена'; msgDiv.className = 'success-message';
   document.getElementById('amount').value = ''; document.getElementById('reason').value = ''; document.getElementById('silentEdit').checked = false;
+  btn.disabled = false;
+  
   fetchObshchak(); setTimeout(() => { msgDiv.textContent = ''; }, 2000);
 }
 
@@ -138,12 +195,20 @@ async function submitPahanki() {
   let msgDiv = document.getElementById('message');
   if (isNaN(amount)) { msgDiv.textContent = 'Введи сумму для Паханки!'; msgDiv.className = 'error-message'; return; }
   
-  let newTotal = (lastPahankiValue || 0) + amount;
+  let btn = document.getElementById('submitPahankiBtn');
+  btn.disabled = true; 
+
+  const { data: latestData } = await db.from('global_state').select('pahanki_total').eq('id', 1).single();
+  let currentTotal = latestData ? latestData.pahanki_total : 0;
+  let newTotal = currentTotal + amount;
+
   await db.from('global_state').update({ pahanki_total: newTotal }).eq('id', 1);
   await db.from('obshchak_logs').insert([{ callsign: window.currentUser.callsign, amount: amount, reason: `[ПАХАНКА] ${reason}` }]);
   
   msgDiv.textContent = '✓ Паханка обновлена'; msgDiv.className = 'success-message';
   document.getElementById('p_amount').value = ''; document.getElementById('p_reason').value = '';
+  btn.disabled = false;
+
   fetchObshchak(); setTimeout(() => { msgDiv.textContent = ''; }, 2000);
 }
 
@@ -168,6 +233,7 @@ function switchTab(tabName) {
   if (tabName === 'stalkers') loadStalkers();
   if (tabName === 'faction-tasks') loadFactionTasks();
   if (tabName === 'housing') loadHousing();
+  if (tabName === 'members-crm') loadMembersList();
 }
 
 function toggleForm(formId) {
@@ -179,8 +245,10 @@ function closeModal(modalId) {
   document.getElementById(modalId).style.display = 'none';
   if(modalId === 'stalkerModal') { document.getElementById('newTaskForm').style.display = 'none'; currentStalkerId = null; }
   if(modalId === 'factionTaskModal') { currentFactionTaskId = null; }
+  if(modalId === 'memberProfileModal') { currentMemberCallsign = null; document.getElementById('newMemberTaskForm').style.display = 'none'; }
 }
 
+/* ============ СКЛАД ============ */
 async function searchStock() {
   let query = document.getElementById('stockSearch').value.trim();
   if (!query) return;
@@ -255,8 +323,20 @@ function renderStockTable(highlightName = null) {
         }
         
         tr.insertCell(0).textContent = item.name;
-        let priceCell = tr.insertCell(1); priceCell.textContent = item.price;
-        if (item.price === 'Не продается') priceCell.style.color = '#ff6666';
+        
+        let priceCell = tr.insertCell(1); 
+        let priceInput = document.createElement('input'); 
+        priceInput.type = 'text'; 
+        priceInput.value = item.price; 
+        priceInput.className = 'qty-input';
+        priceInput.style.width = '100px';
+        if (item.price === 'Не продается') priceInput.style.color = '#ff6666';
+        
+        priceInput.addEventListener('change', (e) => { 
+            let newVal = e.target.value.trim() || 'Не продается'; 
+            updatePriceInDB(item.id, newVal); 
+        });
+        priceCell.appendChild(priceInput);
 
         let cellQty = tr.insertCell(2); let div = document.createElement('div'); div.className = 'qty-cell';
         let btnMinus = document.createElement('button'); btnMinus.textContent = '−'; btnMinus.className = 'qty-btn';
@@ -301,6 +381,7 @@ async function loadStock(highlightName = null) {
 }
 
 async function updateQuantityInDB(itemId, newQty) { if (newQty < 0) return; await db.from('stock_items').update({ quantity: newQty }).eq('id', itemId); loadStock(); }
+async function updatePriceInDB(itemId, newPrice) { await db.from('stock_items').update({ price: newPrice }).eq('id', itemId); loadStock(); }
 
 async function deleteStockItem(itemId) {
   if(!confirm('Удалить этот предмет со склада?')) return;
@@ -323,6 +404,22 @@ async function createStockItem() {
   
   document.getElementById('categorySelect').value = cat;
   loadStock();
+}
+
+/* ============ БАЗА СТАЛКЕРОВ ============ */
+function switchBaseCategory(cat) {
+  currentBaseCategory = cat;
+  let tabs = document.querySelectorAll('.base-tab');
+  tabs.forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  loadStalkers();
+}
+
+function toggleEnemyReason() {
+  let cat = document.getElementById('s_category').value;
+  let reasonInput = document.getElementById('s_reason');
+  if (cat === 'enemy') { reasonInput.style.display = 'block'; } 
+  else { reasonInput.style.display = 'none'; reasonInput.value = ''; }
 }
 
 document.getElementById('pasteArea').addEventListener('paste', function(e) {
@@ -361,52 +458,99 @@ function filterStalkers() {
 
 async function loadStalkers(isTick = false) {
   let grid = document.getElementById('stalkersGrid');
-  if (!isTick) grid.innerHTML = '<div style="width: 100%; text-align: center;">Загрузка базы...</div>';
-  const { data } = await db.from('stalkers').select('*').order('id', { ascending: true });
+  if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка базы...</div>';
   
+  const { data } = await db.from('stalkers').select('*').order('id', { ascending: false });
+  
+  const { data: tasksData } = await db.from('stalker_tasks').select('stalker_id').eq('is_completed', false);
+  let activeCounts = {};
+  if (tasksData) {
+      tasksData.forEach(t => { activeCounts[t.stalker_id] = (activeCounts[t.stalker_id] || 0) + 1; });
+  }
+
   let newHTML = '';
-  if (!data || data.length === 0) { newHTML = '<div style="width: 100%; text-align: center;">База пуста.</div>'; 
+  if (!data || data.length === 0) { 
+      newHTML = '<div style="text-align: center; width: 100%;">База пуста.</div>'; 
   } else {
     data.forEach(s => {
+      let cat = s.category || 'friendly';
+      if (cat !== currentBaseCategory) return; 
+
       let statusColor = s.status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
-      let failedCount = s.failed_tasks || 0;
+      let safeReason = (s.reason || '').replace(/'/g, "\\'");
+      let safeName = s.nickname.replace(/'/g, "\\'");
       
       newHTML += `
-        <div class="card" onclick="openStalkerModal(${s.id}, '${s.nickname}', '${s.status}', ${s.completed_tasks}, ${failedCount}, '${s.photo_url || ''}')">
+        <div class="card" onclick="openStalkerModal(${s.id}, '${safeName}', '${s.status}', ${s.completed_tasks}, ${s.failed_tasks || 0}, '${s.photo_url || ''}', '${cat}', '${safeReason}')">
           <div class="stalker-photo">${s.photo_url ? `<img src="${s.photo_url}">` : '<span style="color: #2a6b2a;">[Нет фото]</span>'}</div>
-          <h3 style="margin: 5px 0; color: #b3ffb3;">☢️ ${s.nickname}</h3>
-          <p style="margin: 0 0 5px; color: ${statusColor}; font-size: 0.9rem;">${s.status}</p>
-          <p style="margin: 0; color: #8ab88a; font-size: 0.8rem;">
-            Успех: <span style="color:#aaffaa">${s.completed_tasks}</span> | Провал: <span style="color:#ff6666">${failedCount}</span>
-          </p>
-        </div>`;
+          <h3 style="margin: 5px 0; color: #b3ffb3;">${cat === 'enemy' ? '💀' : '☢️'} ${s.nickname}</h3>`;
+          
+      if (cat === 'friendly') {
+          let actCount = activeCounts[s.id] || 0;
+          newHTML += `<p style="margin: 0 0 5px; color: ${statusColor}; font-size: 0.9rem;">${s.status}</p>
+                      <p style="margin: 0; color: #8ab88a; font-size: 0.9rem; font-weight:bold;">Активные задания: <span>${actCount}</span></p>`;
+      } else {
+          newHTML += `<p style="margin: 0; color: #ff6666; font-size: 0.9rem;">За что: <b>${s.reason || 'Не указано'}</b></p>`;
+      }
+
+      newHTML += `</div>`;
     });
   }
+  if(newHTML === '') newHTML = '<div style="text-align: center; width: 100%;">В этом списке пока пусто.</div>';
   grid.innerHTML = newHTML;
   filterStalkers();
 }
 
 async function createStalker() {
-  let name = document.getElementById('s_name').value.trim(); let photo = document.getElementById('s_photo').value;
+  let name = document.getElementById('s_name').value.trim(); 
+  let photo = document.getElementById('s_photo').value;
+  let category = document.getElementById('s_category').value;
+  let reason = document.getElementById('s_reason').value.trim();
+
   if (!name) return alert('Укажи позывной!'); 
-  await db.from('stalkers').insert([{ nickname: name, status: 'Не доверенный', completed_tasks: 0, failed_tasks: 0, photo_url: photo }]);
-  document.getElementById('s_name').value = ''; document.getElementById('s_photo').value = '';
-  document.getElementById('previewImage').style.display = 'none'; document.getElementById('previewImage').src = '';
-  toggleForm('stalkerForm'); loadStalkers();
+  
+  await db.from('stalkers').insert([{ 
+      nickname: name, 
+      status: 'Не доверенный', 
+      completed_tasks: 0, 
+      failed_tasks: 0, 
+      photo_url: photo,
+      category: category,
+      reason: reason 
+  }]);
+  
+  document.getElementById('s_name').value = ''; 
+  document.getElementById('s_photo').value = '';
+  document.getElementById('s_reason').value = '';
+  document.getElementById('previewImage').style.display = 'none'; 
+  document.getElementById('previewImage').src = '';
+  
+  toggleForm('stalkerForm'); 
+  loadStalkers();
+}
+
+async function editStalkerProfile() {
+    if(!currentStalkerId) return;
+    let newName = prompt('Изменить позывной:', document.getElementById('m_name').textContent);
+    if (newName && newName.trim() !== '') {
+        await db.from('stalkers').update({ nickname: newName.trim() }).eq('id', currentStalkerId);
+        document.getElementById('m_name').textContent = newName.trim();
+        loadStalkers(true);
+    }
 }
 
 async function deleteCurrentStalker() {
     if(!currentStalkerId) return;
-    if(confirm('Удалить сталкера из базы? Это необратимо.')) {
+    if(confirm('Удалить досье из базы? Это необратимо.')) {
         await db.from('stalkers').delete().eq('id', currentStalkerId);
         await db.from('stalker_tasks').delete().eq('stalker_id', currentStalkerId);
         closeModal('stalkerModal'); loadStalkers();
     }
 }
 
-async function openStalkerModal(id, name, status, completed, failed, photo) {
+async function openStalkerModal(id, name, status, completed, failed, photo, category, reason) {
   currentStalkerId = id; document.getElementById('stalkerModal').style.display = 'flex';
-  document.getElementById('m_name').innerHTML = `${name}`; 
+  document.getElementById('m_name').textContent = name; 
   document.getElementById('m_completed').textContent = completed;
   document.getElementById('m_failed').textContent = failed;
   
@@ -415,14 +559,25 @@ async function openStalkerModal(id, name, status, completed, failed, photo) {
   else photoContainer.innerHTML = `<span style="color: #2a6b2a; font-size:0.8rem;">[Нет фото]</span>`;
 
   let statusContainer = document.getElementById('m_status_container');
-  if (document.body.classList.contains('is-admin')) {
-    let isTrust = status === 'Доверенный' ? 'selected' : ''; let isNotTrust = status === 'Не доверенный' ? 'selected' : '';
-    statusContainer.innerHTML = `<select onchange="changeStalkerStatus(${id}, this.value)" style="width: auto; padding: 5px; font-size: 0.9rem;"><option value="Доверенный" ${isTrust}>Доверенный</option><option value="Не доверенный" ${isNotTrust}>Не доверенный</option></select>`;
+  let statsLine = document.getElementById('m_stats_line');
+  let tasksWrapper = document.getElementById('m_tasks_wrapper');
+
+  if (category === 'friendly') {
+      statsLine.style.display = 'block';
+      tasksWrapper.style.display = 'block';
+      if (document.body.classList.contains('is-admin')) {
+        let isTrust = status === 'Доверенный' ? 'selected' : ''; let isNotTrust = status === 'Не доверенный' ? 'selected' : '';
+        statusContainer.innerHTML = `<select onchange="changeStalkerStatus(${id}, this.value)" style="width: auto; padding: 5px; font-size: 0.9rem;"><option value="Доверенный" ${isTrust}>Доверенный</option><option value="Не доверенный" ${isNotTrust}>Не доверенный</option></select>`;
+      } else {
+        let color = status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
+        statusContainer.innerHTML = `<span style="color:${color}; font-weight:bold;">${status}</span>`;
+      }
+      loadStalkerTasks(id);
   } else {
-    let color = status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
-    statusContainer.innerHTML = `<span style="color:${color}; font-weight:bold;">${status}</span>`;
+      statsLine.style.display = 'none';
+      tasksWrapper.style.display = 'none';
+      statusContainer.innerHTML = `<span style="color:#ff6666; font-weight:bold;">Причина: ${reason || 'Не указано'}</span>`;
   }
-  loadStalkerTasks(id);
 }
 
 async function changeStalkerStatus(id, newStatus) { await db.from('stalkers').update({ status: newStatus }).eq('id', id); loadStalkers(); }
@@ -432,9 +587,14 @@ async function loadStalkerTasks(stalkerId) {
   const { data } = await db.from('stalker_tasks').select('*').eq('stalker_id', stalkerId).order('id', { ascending: false });
   if (!data || data.length === 0) { list.innerHTML = '<div style="text-align: center; color: #555;">Активных контрактов нет</div>'; return; }
   
+  let isAdmin = document.body.classList.contains('is-admin');
   list.innerHTML = '';
+  
   data.forEach(t => {
-    let giverInfo = document.body.classList.contains('is-admin') ? `<div style="font-size: 0.75rem; color: #ffaa00; margin-bottom: 5px;">Выдал: ${t.giver}</div>` : '';
+    let isGiver = t.giver === window.currentUser.callsign;
+    let canEdit = isAdmin || isGiver; // ПУНКТ 4: Кто выдал, тот и рулит
+
+    let giverInfo = `<div style="font-size: 0.75rem; color: #ffaa00; margin-bottom: 5px;">Выдал: ${t.giver}</div>`;
     let deadlineColor = '#aaffaa'; let displayDate = t.deadline; let isLate = false;
 
     if (!t.is_completed && t.deadline && t.deadline !== '—') {
@@ -452,26 +612,38 @@ async function loadStalkerTasks(stalkerId) {
         if (!isNaN(d.getTime())) displayDate = d.toLocaleDateString();
     }
 
+    let safeTitle = t.title.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    let safeReward = t.reward.replace(/'/g, "\\'");
+    let cleanTitle = t.title.replace('[ПРОВАЛ] ', '').replace('[ОПОЗДАНИЕ] ', '');
+
     let actionBtn = '';
     if (!t.is_completed) {
-       let safeTitle = t.title.replace(/'/g, "\\'");
-       actionBtn = `
+        // ПУНКТ 2: Закрывать (успех/провал) могут ВСЕ Мэны
+        actionBtn = `
           <button class="qty-btn" style="background:#1a3a1a; padding: 4px 10px; font-size: 0.8rem;" onclick="completeTask(${t.id}, ${stalkerId}, ${isLate}, '${safeTitle}')">✅</button>
           <button class="qty-btn" style="background:#552a2a; color:#ffcccc; padding: 4px 10px; font-size: 0.8rem; margin-left:5px;" onclick="failTask(${t.id}, ${stalkerId}, '${safeTitle}')">❌</button>
-       `;
+        `;
     } else {
-       if (t.title.includes('[ПРОВАЛ]')) actionBtn = `<span style="color:#ff6666; font-size: 0.9rem;">❌ Провалено</span>`;
-       else if (t.title.includes('[ОПОЗДАНИЕ]')) actionBtn = `<span style="color:#ffaa00; font-size: 0.9rem;">⚠️ С опозданием</span>`;
-       else actionBtn = `<span style="color:#aaffaa; font-size: 0.9rem;">✓ Закрыто</span>`;
+       // ПУНКТ 3: Новые надписи завершения
+       if (t.title.includes('[ПРОВАЛ]')) actionBtn = `<span style="color:#ff6666; font-size: 0.9rem;">❌ Задание провалено</span>`;
+       else if (t.title.includes('[ОПОЗДАНИЕ]')) actionBtn = `<span style="color:#ffaa00; font-size: 0.9rem;">⚠️ Задание с опозданием</span>`;
+       else actionBtn = `<span style="color:#aaffaa; font-size: 0.9rem;">✓ Задание завершено</span>`;
+       
+       if (canEdit) {
+           actionBtn += ` <button class="qty-btn" style="background:#4CAF50; color:#000; padding: 2px 6px; font-size: 0.8rem; margin-left: 5px;" onclick="reactivateTask(${t.id}, ${stalkerId}, '${safeTitle}')" title="Вернуть в работу">🔄</button>`;
+       }
     }
 
-    let safeTitleDel = t.title.replace(/'/g, "\\'");
-    let deleteBtn = document.body.classList.contains('is-admin') ? `<button class="qty-btn" style="background:transparent; color:#ff6666; border:none; padding: 2px 6px; margin-left:10px; font-size: 1rem;" onclick="deleteStalkerTask(${t.id}, ${stalkerId}, ${t.is_completed}, '${safeTitleDel}')">✖</button>` : '';
+    // Редактировать могут только Авторы или Админы
+    let editBtn = (canEdit && !t.is_completed) ? `<button class="qty-btn" style="background:transparent; color:#ffaa00; border:none; padding: 2px 6px; font-size: 1rem;" onclick="openEditTaskModal('personal', ${t.id}, '${cleanTitle.replace(/'/g, "\\'")}', '${t.deadline}', '${safeReward}', '', ${stalkerId})">✏️</button>` : '';
+    let deleteBtn = canEdit ? `<button class="qty-btn" style="background:transparent; color:#ff6666; border:none; padding: 2px 6px; margin-left:5px; font-size: 1rem;" onclick="deleteStalkerTask(${t.id}, ${stalkerId}, ${t.is_completed}, '${safeTitle}')">✖</button>` : '';
+
+    if (!canEdit) editBtn = `<span style="color:#888; font-size:0.7rem; margin-left:10px;">(Только автор)</span>`;
 
     list.innerHTML += `
       <div class="task-card-list" style="${t.is_completed ? 'opacity:0.6;' : ''}">
         ${giverInfo}
-        <div style="font-weight: bold; color: #b3ffb3; margin-bottom: 5px; display:flex; justify-content:space-between;"><span>${t.title.replace('[ПРОВАЛ] ', '').replace('[ОПОЗДАНИЕ] ', '')}</span> ${deleteBtn}</div>
+        <div style="font-weight: bold; color: #b3ffb3; margin-bottom: 5px; display:flex; justify-content:space-between;"><span>${cleanTitle}</span> <div>${editBtn}${deleteBtn}</div></div>
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #8ab88a;">
           <div>Срок: <span style="color:${deadlineColor}; font-weight:bold;">${displayDate}</span> | Награда: ${t.reward}</div>
           <div>${actionBtn}</div>
@@ -486,7 +658,7 @@ async function submitNewTask() {
   if (!title || !deadline) return alert('Укажи задачу и выбери дедлайн!');
   await db.from('stalker_tasks').insert([{ stalker_id: currentStalkerId, giver: window.currentUser.callsign, title: title, deadline: deadline, reward: reward }]);
   document.getElementById('nt_title').value = ''; document.getElementById('nt_deadline').value = ''; document.getElementById('nt_reward').value = '';
-  document.getElementById('newTaskForm').style.display = 'none'; loadStalkerTasks(currentStalkerId);
+  document.getElementById('newTaskForm').style.display = 'none'; loadStalkerTasks(currentStalkerId); loadStalkers(true);
 }
 
 async function completeTask(taskId, stalkerId, isLate, title) {
@@ -518,6 +690,22 @@ async function failTask(taskId, stalkerId, title) {
     loadStalkerTasks(stalkerId); loadStalkers(true); 
 }
 
+async function reactivateTask(taskId, stalkerId, title) {
+    let cleanTitle = title.replace('[ПРОВАЛ] ', '').replace('[ОПОЗДАНИЕ] ', '');
+    await db.from('stalker_tasks').update({ is_completed: false, title: cleanTitle }).eq('id', taskId);
+    
+    if (title.includes('[ПРОВАЛ]') || title.includes('[ОПОЗДАНИЕ]')) {
+        let f = parseInt(document.getElementById('m_failed').textContent) - 1;
+        await db.from('stalkers').update({ failed_tasks: Math.max(0, f) }).eq('id', stalkerId);
+        document.getElementById('m_failed').textContent = Math.max(0, f);
+    } else {
+        let c = parseInt(document.getElementById('m_completed').textContent) - 1;
+        await db.from('stalkers').update({ completed_tasks: Math.max(0, c) }).eq('id', stalkerId);
+        document.getElementById('m_completed').textContent = Math.max(0, c);
+    }
+    loadStalkerTasks(stalkerId); loadStalkers(true);
+}
+
 async function deleteStalkerTask(taskId, stalkerId, isCompleted, title) {
   if(!confirm('Удалить эту запись из контрактов сталкера?')) return;
   await db.from('stalker_tasks').delete().eq('id', taskId);
@@ -533,9 +721,8 @@ async function deleteStalkerTask(taskId, stalkerId, isCompleted, title) {
           await db.from('stalkers').update({ completed_tasks: newCompleted }).eq('id', stalkerId);
           document.getElementById('m_completed').textContent = newCompleted;
       }
-      loadStalkers(true);
   }
-  loadStalkerTasks(stalkerId);
+  loadStalkerTasks(stalkerId); loadStalkers(true);
 }
 
 async function givePodgon() {
@@ -547,6 +734,57 @@ async function givePodgon() {
     await db.from('stalkers').update({ completed_tasks: newCompleted }).eq('id', currentStalkerId);
     document.getElementById('m_completed').textContent = newCompleted;
     loadStalkerTasks(currentStalkerId); loadStalkers(true);
+}
+
+/* ================================
+   ГЛОБАЛЬНЫЕ ЗАДАЧИ
+   ================================ */
+function openEditTaskModal(type, id, title='', deadline='', reward='', desc='', stalkerId=null) {
+    document.getElementById('editTaskModal').style.display = 'flex';
+    document.getElementById('et_id').value = id;
+    document.getElementById('et_type').value = type;
+    document.getElementById('et_title').value = title;
+    document.getElementById('et_deadline').value = deadline !== '—' ? deadline : '';
+    document.getElementById('et_reward').value = reward !== '—' ? reward : '';
+    
+    let descBlock = document.getElementById('et_desc_container');
+    if (type === 'faction' || type === 'memberTask') {
+        if(type === 'faction') {
+            let task = currentFactionTasksList.find(t => t.id === id);
+            if(task) document.getElementById('et_desc').value = task.description || '';
+        } else {
+            let task = currentMemberTasksList.find(t => t.id === id);
+            if(task) document.getElementById('et_desc').value = task.description || '';
+        }
+        descBlock.style.display = 'block';
+    } else {
+        descBlock.style.display = 'none';
+        document.getElementById('et_stalker_id').value = stalkerId;
+    }
+}
+
+async function saveTaskEdit() {
+    let id = document.getElementById('et_id').value;
+    let type = document.getElementById('et_type').value;
+    let title = document.getElementById('et_title').value.trim();
+    let deadline = document.getElementById('et_deadline').value;
+    let reward = document.getElementById('et_reward').value.trim();
+    
+    if(!title) return alert("Название не может быть пустым!");
+
+    if (type === 'faction') {
+        let desc = document.getElementById('et_desc').value;
+        await db.from('faction_tasks').update({ title, deadline, reward, description: desc }).eq('id', id);
+        closeModal('editTaskModal'); closeModal('factionTaskModal'); loadFactionTasks();
+    } else if (type === 'memberTask') {
+        let desc = document.getElementById('et_desc').value;
+        await db.from('member_tasks').update({ title, deadline, importance: reward, description: desc }).eq('id', id);
+        closeModal('editTaskModal'); loadMemberTasksForProfile(currentMemberCallsign);
+    } else {
+        await db.from('stalker_tasks').update({ title, deadline, reward }).eq('id', id);
+        let sId = document.getElementById('et_stalker_id').value;
+        closeModal('editTaskModal'); loadStalkerTasks(sId);
+    }
 }
 
 async function loadFactionTasks(isTick = false) {
@@ -574,11 +812,6 @@ async function loadFactionTasks(isTick = false) {
               displayDate = d.toLocaleDateString();
           }
       }
-
-      let safeTitle = task.title.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-      let safeRisk = task.risk.replace(/'/g, "\\'"); let safeImp = task.importance.replace(/'/g, "\\'");
-      let safeDeadline = displayDate.replace(/'/g, "\\'"); let safeReward = task.reward.replace(/'/g, "\\'");
-      let safeDesc = (task.description || '').replace(/'/g, "\\'").replace(/\n/g, '\\n');
 
       newHTML += `
         <div class="card" onclick="openFactionTaskModal(${task.id}, '${deadlineColor}', '${displayDate}')">
@@ -630,6 +863,283 @@ async function deleteCurrentFactionTask() {
   }
 }
 
+/* ================================
+   ЛИЧНЫЙ СОСТАВ И ЗАДАЧИ (РОСТЕР)
+   ================================ */
+
+async function loadMembersList(isTick = false) {
+  let grid = document.getElementById('membersGrid');
+  if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка состава...</div>';
+  
+  const { data } = await db.from('freedom_members').select('*');
+  
+  if (data) {
+    allMembersList = data.filter(m => m.role !== 'curator');
+    
+    allMembersList.sort((a, b) => getRankWeight(a.rank) - getRankWeight(b.rank));
+    
+    const { data: tasksData } = await db.from('member_tasks').select('assigned_to, status');
+    let actCounts = {};
+    let compCounts = {};
+    if (tasksData) {
+        tasksData.forEach(t => { 
+            if (t.status === 'completed') {
+                compCounts[t.assigned_to] = (compCounts[t.assigned_to] || 0) + 1;
+            } else {
+                actCounts[t.assigned_to] = (actCounts[t.assigned_to] || 0) + 1; 
+            }
+        });
+    }
+
+    let html = '';
+
+    allMembersList.forEach(m => {
+        let isMe = (m.callsign === window.currentUser.callsign);
+        let safeName = m.callsign.replace(/'/g, "\\'");
+        let safeRank = m.rank.replace(/'/g, "\\'");
+        let safePhoto = m.photo_url ? m.photo_url.replace(/'/g, "\\'") : '';
+        
+        let actCount = actCounts[m.callsign] || 0;
+        let compCount = compCounts[m.callsign] || 0;
+        
+        let alertBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ff3333; color:#fff; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;">${actCount}</div>` : '';
+        
+        html += `
+        <div class="card member-card ${isMe ? 'my-card' : ''}" onclick="openMemberProfile('${safeName}', '${safeRank}', '${safePhoto}')" style="position:relative;">
+          ${isMe ? '<div class="my-card-label">ЭТО ТЫ</div>' : ''}
+          ${alertBadge}
+          <div class="stalker-photo">${m.photo_url ? `<img src="${m.photo_url}">` : '<span style="color: #2a6b2a;">[Нет]</span>'}</div>
+          <h3 style="margin: 5px 0; color: #b3ffb3; font-size:1.1rem;">${m.callsign}</h3>
+          <p style="margin: 0 0 5px; color: #ffaa00; font-size: 0.85rem; font-weight:bold;">${m.rank}</p>
+          
+          <div style="font-size: 0.8rem; color: #8ab88a; background: rgba(0,0,0,0.5); padding: 4px; border-radius: 6px;">
+            В работе: <span style="color:#ffaa00; font-weight:bold;">${actCount}</span><br>
+            Готово: <span style="color:#aaffaa; font-weight:bold;">${compCount}</span>
+          </div>
+        </div>`;
+    });
+    grid.innerHTML = html;
+  }
+}
+
+function openMemberProfile(callsign, rank, photo) {
+  currentMemberCallsign = callsign;
+  document.getElementById('memberProfileModal').style.display = 'flex';
+  document.getElementById('mp_name').textContent = callsign;
+  document.getElementById('mp_rank').textContent = rank;
+  
+  let photoContainer = document.getElementById('mp_photo');
+  if (photo && photo !== '') {
+      photoContainer.innerHTML = `<img src="${photo}" style="width:100%; height:100%; object-fit:cover;">`; 
+  } else {
+      photoContainer.innerHTML = `<span style="color: #2a6b2a; font-size:0.8rem; text-align:center;">Изменить<br>Фото</span>`;
+  }
+  
+  loadMemberTasksForProfile(callsign);
+}
+
+document.getElementById('memberPasteArea').addEventListener('paste', function(e) {
+  let items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  for (let index in items) {
+    if (items[index].kind === 'file') {
+      let reader = new FileReader();
+      reader.onload = function(event) {
+        let img = new Image();
+        img.onload = function() {
+          let canvas = document.createElement('canvas'); let ctx = canvas.getContext('2d');
+          let maxWidth = 300; let scale = maxWidth / img.width;
+          canvas.width = maxWidth; canvas.height = img.height * scale;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          let base64 = canvas.toDataURL('image/jpeg', 0.6);
+          document.getElementById('emp_preview').src = base64;
+          document.getElementById('emp_preview').style.display = 'inline-block';
+          document.getElementById('emp_photo_base64').value = base64;
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(items[index].getAsFile());
+    }
+  }
+});
+
+function openMemberPhotoModal() {
+  if (!document.body.classList.contains('is-admin')) return;
+  document.getElementById('emp_name').textContent = currentMemberCallsign;
+  document.getElementById('emp_photo_base64').value = '';
+  document.getElementById('emp_preview').style.display = 'none';
+  document.getElementById('emp_preview').src = '';
+  document.getElementById('editMemberPhotoModal').style.display = 'flex';
+}
+
+async function saveMemberPhoto() {
+  let photoBase64 = document.getElementById('emp_photo_base64').value;
+  if (!photoBase64) return alert('Сначала вставь картинку (Ctrl+V)!');
+  
+  await db.from('freedom_members').update({ photo_url: photoBase64 }).eq('callsign', currentMemberCallsign);
+  
+  let photoContainer = document.getElementById('mp_photo');
+  photoContainer.innerHTML = `<img src="${photoBase64}" style="width:100%; height:100%; object-fit:cover;">`;
+  
+  closeModal('editMemberPhotoModal');
+  loadMembersList(true); 
+}
+
+async function loadMemberTasksForProfile(callsign) {
+  let list = document.getElementById('mp_tasks_list');
+  list.innerHTML = '<div style="text-align: center; color: #888;">Загрузка...</div>';
+  
+  const { data } = await db.from('member_tasks').select('*').eq('assigned_to', callsign).order('created_at', { ascending: false });
+  let html = '';
+  let isAdmin = document.body.classList.contains('is-admin');
+  
+  if (!data || data.length === 0) {
+      html = '<div style="text-align: center; color: #555;">Боец отдыхает. Задач нет.</div>';
+  } else {
+      currentMemberTasksList = data;
+      data.forEach(t => {
+          let isMine = t.assigned_to === window.currentUser.callsign;
+          
+          let statusText = 'В работе';
+          let statusClass = 'status-active';
+          if (t.status === 'review') { statusText = 'На проверке'; statusClass = 'status-review'; }
+          if (t.status === 'completed') { statusText = 'Выполнено'; statusClass = 'status-completed'; }
+          
+          let deadlineColor = '#aaffaa';
+          if (t.deadline && t.status !== 'completed') {
+              let d = new Date(t.deadline);
+              if (!isNaN(d.getTime())) {
+                  let today = new Date(); today.setHours(0,0,0,0); d.setHours(0,0,0,0);
+                  let diff = Math.ceil((d - today) / (1000 * 3600 * 24));
+                  if (diff < 0) deadlineColor = '#ff3333';
+                  else if (diff === 0) deadlineColor = '#ffaa00';
+                  else if (diff <= 2) deadlineColor = '#ffffaa';
+              }
+          }
+
+          let safeDesc = (t.description || '').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          let safeTitle = t.title.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+          let safeImp = t.importance ? t.importance.replace(/'/g, "\\'") : '';
+          
+          let actionBtns = '<div style="display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap;">';
+          
+          if (isMine) {
+              actionBtns += `<button class="qty-btn" id="mt_btn_save_${t.id}" style="background: #2a552a;" onclick="saveMemberTaskComment(${t.id})">💾 Сохранить отчет</button>`;
+              if (t.status === 'active') {
+                  // ПУНКТ 3: УМНАЯ ОТПРАВКА НА ПРОВЕРКУ (сначала сохраняем текст, потом меняем статус)
+                  actionBtns += `<button class="qty-btn" style="background: #aa7700; color:#fff;" onclick="submitReviewMemberTask(${t.id})">📤 Отправить на проверку</button>`;
+              }
+          }
+          
+          if (isAdmin) {
+              if (t.status !== 'completed') {
+                  actionBtns += `<button class="qty-btn" style="background: #2a552a;" onclick="setMemberTaskStatus(${t.id}, 'completed')">✅ Закрыть задачу</button>`;
+              }
+              if (t.status === 'review') {
+                  actionBtns += `<button class="qty-btn" style="background: #552a2a; color:#ffcccc;" onclick="setMemberTaskStatus(${t.id}, 'active')">❌ Отклонить отчет</button>`;
+              }
+              if (t.status === 'completed') {
+                  actionBtns += `<button class="qty-btn" style="background: #333;" onclick="setMemberTaskStatus(${t.id}, 'active')">🔄 Вернуть в работу</button>`;
+              }
+              actionBtns += `<button class="qty-btn" style="border: 1px solid #ffaa00; color: #ffaa00; background:transparent;" onclick="openEditTaskModal('memberTask', ${t.id}, '${safeTitle}', '${t.deadline || ''}', '${safeImp}')">✏️</button>`;
+              actionBtns += `<button class="qty-btn" style="border: 1px solid #ff6666; color: #ff6666; background:transparent;" onclick="deleteMemberTask(${t.id})">✖</button>`;
+          }
+          actionBtns += '</div>';
+
+          let readOnlyAttr = (!isMine && !isAdmin) ? 'readonly' : '';
+          let placeholderAttr = isMine ? 'Напиши сюда свой отчет или комментарий по задаче...' : 'Боец пока ничего не написал.';
+          
+          html += `
+          <div class="mt-card ${t.status === 'completed' ? 'completed' : ''}">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <h3 style="margin: 0 0 5px; color: #b3ffb3;">${t.title}</h3>
+                <div class="status-badge ${statusClass}">${statusText}</div>
+              </div>
+              
+              <div style="font-size: 0.85rem; color: #8ab88a; margin-bottom: 10px; border-bottom: 1px dashed #2a6b2a; padding-bottom: 10px;">
+                Выдал: <span style="color:#ffaa00;">${t.assigned_by}</span> | 
+                Важность: <span style="color:#ffffaa;">${t.importance || 'Обычная'}</span> | 
+                Срок: <span style="color:${deadlineColor}; font-weight:bold;">${t.deadline || 'Без срока'}</span>
+              </div>
+              
+              ${safeDesc ? `<div style="font-size: 0.9rem; color: #aaffaa; margin-bottom: 15px; white-space: pre-wrap;">${safeDesc}</div>` : ''}
+              
+              <label style="font-size: 0.85rem; color:#8ab88a;">Отчет бойца:</label>
+              <textarea class="mt-comment-box" id="mt_comment_${t.id}" rows="2" placeholder="${placeholderAttr}" ${readOnlyAttr}>${t.comment || ''}</textarea>
+              
+              ${actionBtns}
+          </div>`;
+      });
+  }
+  list.innerHTML = html;
+}
+
+async function submitNewMemberTask() {
+  if (!currentMemberCallsign) return;
+  let title = document.getElementById('nmt_title').value.trim();
+  let desc = document.getElementById('nmt_desc').value.trim();
+  let imp = document.getElementById('nmt_imp').value.trim();
+  let deadline = document.getElementById('nmt_deadline').value;
+  
+  if (!title) return alert('Укажи суть задачи!');
+  
+  await db.from('member_tasks').insert([{
+     assigned_to: currentMemberCallsign,
+     assigned_by: window.currentUser.callsign,
+     title: title, description: desc, importance: imp, deadline: deadline || null,
+     status: 'active', comment: ''
+  }]);
+  
+  document.getElementById('nmt_title').value = '';
+  document.getElementById('nmt_desc').value = '';
+  document.getElementById('nmt_imp').value = '';
+  document.getElementById('nmt_deadline').value = '';
+  
+  document.getElementById('newMemberTaskForm').style.display = 'none';
+  loadMemberTasksForProfile(currentMemberCallsign);
+  loadMembersList(true); 
+}
+
+async function setMemberTaskStatus(id, newStatus) {
+  await db.from('member_tasks').update({ status: newStatus }).eq('id', id);
+  loadMemberTasksForProfile(currentMemberCallsign);
+  loadMembersList(true);
+}
+
+// ПУНКТ 3: Отправить на проверку (Сразу сохраняет текст, потом меняет статус)
+async function submitReviewMemberTask(id) {
+  let textarea = document.getElementById('mt_comment_' + id);
+  let comment = textarea ? textarea.value.trim() : '';
+  await db.from('member_tasks').update({ status: 'review', comment: comment }).eq('id', id);
+  loadMemberTasksForProfile(currentMemberCallsign);
+  loadMembersList(true);
+}
+
+async function saveMemberTaskComment(id) {
+  let textarea = document.getElementById('mt_comment_' + id);
+  if(!textarea) return;
+  let comment = textarea.value.trim();
+  await db.from('member_tasks').update({ comment }).eq('id', id);
+  
+  let btn = document.getElementById('mt_btn_save_' + id);
+  if(btn) {
+      let oldText = btn.innerHTML;
+      btn.innerHTML = '✓ Сохранено';
+      btn.style.color = '#aaffaa';
+      setTimeout(() => { btn.innerHTML = oldText; btn.style.color = ''; }, 2000);
+  }
+}
+
+async function deleteMemberTask(id) {
+  if(confirm('Точно удалить эту задачу из базы?')) {
+      await db.from('member_tasks').delete().eq('id', id);
+      loadMemberTasksForProfile(currentMemberCallsign);
+      loadMembersList(true);
+  }
+}
+
+/* ================================
+   ЖИЛЬЕ, РЕЙТИНГ, ИСТОРИЯ
+   ================================ */
 async function loadHousing(isTick = false) {
   let grid = document.getElementById('housingGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка...</div>';
@@ -751,6 +1261,10 @@ window.onload = () => {
   document.getElementById('categorySelect').addEventListener('change', () => loadStock());
 
   setInterval(() => {
+    let activeTag = document.activeElement ? document.activeElement.tagName : '';
+    let isTyping = (activeTag === 'INPUT' || activeTag === 'TEXTAREA');
+    if (isTyping) return;
+
     if (document.getElementById('main-app').style.display === 'flex') {
       fetchObshchak(); 
       if (currentTab === 'rating') loadRating(true);
@@ -758,8 +1272,14 @@ window.onload = () => {
       if (currentTab === 'faction-tasks' && currentFactionTaskId === null) loadFactionTasks(true);
       if (currentTab === 'stalkers' && currentStalkerId === null) loadStalkers(true); 
       if (currentTab === 'housing') loadHousing(true);
+      if (currentTab === 'members-crm') {
+          loadMembersList(true);
+          if (document.getElementById('memberProfileModal').style.display === 'flex' && currentMemberCallsign) {
+              loadMemberTasksForProfile(currentMemberCallsign);
+          }
+      }
     }
-  }, 20000);
+  }, 30000); 
 
   setInterval(() => {
     if (document.getElementById('main-app').style.display === 'flex') {
@@ -767,7 +1287,6 @@ window.onload = () => {
     }
   }, 45000);
 };
-
 
 document.addEventListener('contextmenu', event => event.preventDefault()); 
 document.onkeydown = function(e) {

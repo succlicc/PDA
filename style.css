@@ -1,4 +1,3 @@
-/* --- СИСТЕМА ДОСТУПОВ --- */
 body:not(.is-admin) .admin-only { display: none !important; }
 body.is-admin .profile-photo { cursor: pointer; transition: 0.2s; }
 body.is-admin .profile-photo:hover { box-shadow: 0 0 15px #4CAF50; border-color: #4CAF50; transform: scale(1.05); }
@@ -28,7 +27,6 @@ body {
 
 .pda-header { text-align: center; margin-bottom: 8px; position: relative; flex-shrink: 0; }
 
-/* ОБНОВЛЕННЫЙ ЗАГОЛОВОК */
 .version { 
   font-size: 1.8rem; 
   letter-spacing: 6px; 
@@ -63,7 +61,6 @@ body {
   .online-radar:hover { opacity: 1; }
 }
 
-/* КАЛЬКУЛЯТОР */
 .calc-widget {
   position: fixed; 
   bottom: 20px; 
@@ -97,7 +94,6 @@ body {
 .calc-buttons .op-btn { background: #552a2a; color: #ffcccc; border-color: #ff6666; }
 .calc-buttons .calc-btn { background: #4CAF50; color: #000; }
 .calc-buttons .clear-btn { background: #aa7700; color: #fff; }
-
 
 .obshchak {
   font-size: 2.6em; font-weight: bold; text-align: center; margin: 10px 0 15px;
@@ -148,7 +144,6 @@ body {
 }
 .card:hover { box-shadow: 0 0 15px rgba(0,255,0,0.3); border-color: #4CAF50; transform: translateY(-2px); }
 
-/* КОМПАКТНАЯ КАРТОЧКА МЭНА И ПОДСВЕТКА СВОЕЙ */
 .card.member-card {
   min-width: 140px; 
   padding: 10px;
@@ -258,7 +253,6 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: #4CAF50
 .paste-area { border: 2px dashed #4CAF50; border-radius: 12px; padding: 15px; text-align: center; color: #8ab88a; cursor: pointer; background: rgba(0, 50, 0, 0.3); transition: 0.2s; margin-top: 10px; }
 .paste-area:hover { background: rgba(0, 100, 0, 0.3); color: #b3ffb3; }
 
-/* --- МОДАЛЬНЫЕ ОКНА --- */
 .modal-overlay {
   display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px);

@@ -47,6 +47,46 @@ function getMondays() {
     return { thisMonday, lastMonday };
 }
 
+// ЛОГИКА ПЕРЕТАСКИВАНИЯ ОКОН (Drag and Drop)
+function dragElement(elmnt, header) {
+  var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  if (header) {
+    header.onmousedown = dragMouseDown;
+  } else {
+    elmnt.onmousedown = dragMouseDown;
+  }
+
+  function dragMouseDown(e) {
+    e = e || window.event;
+    if (e.target.id === 'calc-toggle-icon' || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    
+    e.preventDefault();
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    document.onmouseup = closeDragElement;
+    document.onmousemove = elementDrag;
+  }
+
+  function elementDrag(e) {
+    e = e || window.event;
+    e.preventDefault();
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    
+    elmnt.style.bottom = 'auto';
+    elmnt.style.right = 'auto';
+    elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+    elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+  }
+
+  function closeDragElement() {
+    document.onmouseup = null;
+    document.onmousemove = null;
+  }
+}
+
 function checkSession() {
   let savedUser = localStorage.getItem('freedom_user');
   if (savedUser) {
@@ -60,6 +100,10 @@ function checkSession() {
     fetchObshchak();
     updateOnlineStatus();
     loadMembersList(true); 
+    
+    // Активируем перетаскивание при входе
+    dragElement(document.getElementById("calc-widget"), document.getElementById("calc-header"));
+    dragElement(document.getElementById("onlineRadar"), document.getElementById("radar-header"));
   }
 }
 
@@ -103,6 +147,9 @@ async function login() {
   fetchObshchak(); 
   updateOnlineStatus();
   loadMembersList(true);
+  
+  dragElement(document.getElementById("calc-widget"), document.getElementById("calc-header"));
+  dragElement(document.getElementById("onlineRadar"), document.getElementById("radar-header"));
 }
 
 function applyRoles(role) {
@@ -121,16 +168,59 @@ function toggleCalc() {
         icon.textContent = '▲';
     }
 }
-function calcAppend(val) { document.getElementById('calc-display').value += val; }
-function calcClear() { document.getElementById('calc-display').value = ''; }
+
+function calcAppend(val) { 
+    document.getElementById('calc-display').value += val; 
+    document.getElementById('calc-info').textContent = '';
+}
+
+function calcClear() { 
+    document.getElementById('calc-display').value = ''; 
+    document.getElementById('calc-info').textContent = '';
+}
+
+function calcBackspace() {
+    let val = document.getElementById('calc-display').value;
+    document.getElementById('calc-display').value = val.slice(0, -1);
+    document.getElementById('calc-info').textContent = '';
+}
+
 function calcCalculate() {
     try {
         let expr = document.getElementById('calc-display').value;
+        if(!expr) return;
         let res = new Function('return ' + expr)();
-        if (res !== undefined) document.getElementById('calc-display').value = res;
+        if (res !== undefined) {
+            let formatted = Number.isInteger(res) ? res : parseFloat(res.toFixed(2));
+            document.getElementById('calc-display').value = formatted;
+        }
     } catch(e) {
-        document.getElementById('calc-display').value = 'Ошибка';
-        setTimeout(calcClear, 1500);
+        document.getElementById('calc-info').textContent = 'Ошибка';
+    }
+}
+
+function calcPercent() {
+    let expr = document.getElementById('calc-display').value;
+    if(!expr) return;
+    try {
+        let baseAmount = new Function('return ' + expr)();
+        if (baseAmount !== undefined && !isNaN(baseAmount)) {
+            let pct = prompt('Какой процент вычесть? (Например: 15)');
+            if (pct !== null && pct.trim() !== '') {
+                let pctNum = parseFloat(pct.replace(',', '.'));
+                if (!isNaN(pctNum)) {
+                    let cut = (baseAmount * pctNum) / 100;
+                    let result = baseAmount - cut;
+                    let formattedResult = Number.isInteger(result) ? result : parseFloat(result.toFixed(2));
+                    let formattedCut = Number.isInteger(cut) ? cut : parseFloat(cut.toFixed(2));
+                    
+                    document.getElementById('calc-display').value = formattedResult;
+                    document.getElementById('calc-info').textContent = `Вычет ${pctNum}%: ${formattedCut}`;
+                }
+            }
+        }
+    } catch (e) {
+         document.getElementById('calc-info').textContent = 'Сначала введите число';
     }
 }
 
@@ -509,7 +599,6 @@ document.getElementById('pasteArea').addEventListener('paste', function(e) { han
 document.getElementById('memberPasteArea').addEventListener('paste', function(e) { handlePasteEvent(e, 'emp_preview', 'emp_photo_base64'); });
 document.getElementById('stalkerPasteAreaEdit').addEventListener('paste', function(e) { handlePasteEvent(e, 'esp_preview', 'esp_photo_base64'); });
 
-
 function filterStalkers() {
   let term = document.getElementById('stalkerSearch').value.toLowerCase();
   let cards = document.querySelectorAll('#stalkersGrid .card');
@@ -840,9 +929,6 @@ async function givePodgon() {
     loadStalkerTasks(currentStalkerId); loadStalkers(true);
 }
 
-/* ================================
-   ГЛОБАЛЬНЫЕ ЗАДАЧИ
-   ================================ */
 function openEditTaskModal(type, id, title='', deadline='', reward='', desc='', stalkerId=null) {
     document.getElementById('editTaskModal').style.display = 'flex';
     document.getElementById('et_id').value = id;
@@ -967,10 +1053,6 @@ async function deleteCurrentFactionTask() {
   }
 }
 
-/* ================================
-   ЛИЧНЫЙ СОСТАВ И ЗАДАЧИ (РОСТЕР)
-   ================================ */
-
 async function loadMembersList(isTick = false) {
   let grid = document.getElementById('membersGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка состава...</div>';
@@ -1011,6 +1093,7 @@ async function loadMembersList(isTick = false) {
     }
 
     let html = '';
+    let isAdmin = document.body.classList.contains('is-admin');
 
     allMembersList.forEach(m => {
         let isMe = (m.callsign === window.currentUser.callsign);
@@ -1023,8 +1106,15 @@ async function loadMembersList(isTick = false) {
         let activeBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ffaa00; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Задач в работе">${actCount}</div>` : '';
         let reviewBadge = revCount > 0 ? `<div style="position: absolute; top:-5px; left:-5px; background:#4CAF50; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Сдано на проверку">${revCount}</div>` : '';
         
+        let onclickAction = '';
+        if (isMe || isAdmin) {
+            onclickAction = `onclick="openMemberProfile('${safeName}')"`;
+        } else {
+            onclickAction = `onclick="alert('Доступ закрыт. Это ПДА бойца ${safeName}.')"`;
+        }
+
         html += `
-        <div class="card member-card ${isMe ? 'my-card' : ''}" onclick="openMemberProfile('${safeName}')" style="position:relative;">
+        <div class="card member-card ${isMe ? 'my-card' : ''}" ${onclickAction} style="position:relative;">
           ${isMe ? '<div class="my-card-label">ЭТО ТЫ</div>' : ''}
           ${reviewBadge}
           ${activeBadge}
@@ -1283,9 +1373,6 @@ async function deleteMemberTask(id) {
   }
 }
 
-/* ================================
-   ЖИЛЬЕ, РЕЙТИНГ, ИСТОРИЯ
-   ================================ */
 async function loadHousing(isTick = false) {
   let grid = document.getElementById('housingGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка...</div>';

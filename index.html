@@ -13,45 +13,52 @@
 <body>
 
 <div class="online-radar" id="onlineRadar" style="display: none;">
-  <div style="font-size: 0.8rem; color: #aaffaa; border-bottom: 1px dashed #2a6b2a; padding-bottom: 5px; margin-bottom: 8px; font-weight: bold; text-align: left;">
+  <div id="radar-header" style="font-size: 0.8rem; color: #aaffaa; border-bottom: 1px dashed #2a6b2a; padding-bottom: 5px; margin-bottom: 8px; font-weight: bold; text-align: left; cursor: grab;">
     📶 В сети: <span id="online-count">1</span>
   </div>
   <div id="online-list" style="font-size: 0.8rem; color: #8ab88a; max-height: 120px; overflow-y: auto; text-align: left;"></div>
 </div>
 
 <div id="calc-widget" class="calc-widget" style="display: none;">
-  <div class="calc-header" onclick="toggleCalc()">
-    <span>🖩 Калькулятор</span>
-    <span id="calc-toggle-icon">▲</span>
+  <div class="calc-header" id="calc-header" style="cursor: grab;">
+    <span>🖩 Палькулятор</span>
+    <span id="calc-toggle-icon" onclick="toggleCalc()" style="cursor: pointer; padding: 0 5px;">▲</span>
   </div>
   <div id="calc-body" class="calc-body">
-    <input type="text" id="calc-display" readonly>
+    <div class="calc-display-container">
+      <input type="text" id="calc-display" readonly>
+      <div id="calc-info"></div>
+    </div>
     <div class="calc-buttons">
+      <button onclick="calcClear()" class="clear-btn">C</button>
+      <button onclick="calcBackspace()" class="clear-btn">⌫</button>
+      <button onclick="calcPercent()" class="op-btn">%</button>
+      <button onclick="calcAppend('/')" class="op-btn">÷</button>
+      
       <button onclick="calcAppend('7')">7</button>
       <button onclick="calcAppend('8')">8</button>
       <button onclick="calcAppend('9')">9</button>
-      <button onclick="calcAppend('/')" class="op-btn">÷</button>
+      <button onclick="calcAppend('*')" class="op-btn">×</button>
       
       <button onclick="calcAppend('4')">4</button>
       <button onclick="calcAppend('5')">5</button>
       <button onclick="calcAppend('6')">6</button>
-      <button onclick="calcAppend('*')" class="op-btn">×</button>
+      <button onclick="calcAppend('-')" class="op-btn">−</button>
       
       <button onclick="calcAppend('1')">1</button>
       <button onclick="calcAppend('2')">2</button>
       <button onclick="calcAppend('3')">3</button>
-      <button onclick="calcAppend('-')" class="op-btn">−</button>
-      
-      <button onclick="calcClear()" class="clear-btn">C</button>
-      <button onclick="calcAppend('0')">0</button>
-      <button onclick="calcCalculate()" class="calc-btn">=</button>
       <button onclick="calcAppend('+')" class="op-btn">+</button>
+      
+      <button onclick="calcAppend('0')" style="grid-column: span 2;">0</button>
+      <button onclick="calcAppend('.')">.</button>
+      <button onclick="calcCalculate()" class="calc-btn">=</button>
     </div>
   </div>
 </div>
 
 <div class="pda" id="login-screen" style="max-width: 400px; margin: auto; text-align: center; height: auto; overflow-y: auto;">
-  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 2.4 CRM</div>
+  <div class="version" style="margin-bottom: 20px;">PDA FREEDOM 2.5 CRM</div>
   <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
   
   <label>Позывной (Логин)</label>
@@ -65,7 +72,7 @@
 
 <div class="pda" id="main-app" style="display: none;">
   <div class="pda-header" style="text-align: center; margin-bottom: 15px; border-bottom: 1px solid #2a6b2a; padding-bottom: 10px;">
-    <div class="version">PDA FREEDOM 2.4 CRM</div>
+    <div class="version">PDA FREEDOM 2.5 CRM</div>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
       <div class="sync-status">🟢 В сети</div>
       <div style="font-size: 0.8rem; color: #8ab88a;">
@@ -376,7 +383,7 @@
     <span class="close-btn" onclick="closeModal('stalkerModal')">✖</span>
     
     <div style="display: flex; gap: 20px; align-items: flex-start;">
-      <div id="m_photo" style="width: 120px; height: 120px; border: 1px solid #2a6b2a; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #000;" class="profile-photo admin-editable" onclick="openStalkerPhotoModal()" title="Изменить фото"></div>
+      <div id="m_photo" class="profile-photo admin-editable" onclick="openStalkerPhotoModal()" title="Изменить фото" style="width: 120px; height: 120px; border: 1px solid #2a6b2a; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #000;"></div>
       <div style="flex: 1;">
         <h2 style="margin: 0 0 10px; color: #b3ffb3;">
           <span id="m_name">Позывной</span>

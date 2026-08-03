@@ -16,7 +16,7 @@ let stockSortDir = 1;
 let currentBaseCategory = 'friendly'; 
 
 let allMembersList = [];
-let allStalkersList = []; // Добавили массив сталкеров для безопасной загрузки
+let allStalkersList = []; 
 let currentMemberCallsign = null;
 let currentMemberTasksList = [];
 
@@ -30,9 +30,21 @@ const rankWeights = {
     'weed': 7,
     'seed': 8
 };
+
 function getRankWeight(rank) {
     let r = rank.toLowerCase().trim();
     return rankWeights[r] || 99; 
+}
+
+function getMondays() {
+    let now = new Date();
+    let day = now.getDay() || 7; 
+    if (day !== 1) now.setHours(-24 * (day - 1)); 
+    now.setHours(0, 0, 0, 0);
+    let thisMonday = new Date(now);
+    let lastMonday = new Date(thisMonday);
+    lastMonday.setDate(lastMonday.getDate() - 7);
+    return { thisMonday, lastMonday };
 }
 
 function checkSession() {
@@ -98,7 +110,6 @@ function applyRoles(role) {
   else document.body.classList.remove('is-admin');
 }
 
-/* ============ КАЛЬКУЛЯТОР ============ */
 function toggleCalc() {
     let body = document.getElementById('calc-body');
     let icon = document.getElementById('calc-toggle-icon');
@@ -293,9 +304,11 @@ function closeModal(modalId) {
   if(modalId === 'factionTaskModal') { currentFactionTaskId = null; }
   if(modalId === 'memberProfileModal') { currentMemberCallsign = null; document.getElementById('newMemberTaskForm').style.display = 'none'; }
   if(modalId === 'editMemberPhotoModal') { document.getElementById('emp_photo_base64').value = ''; document.getElementById('emp_preview').style.display = 'none'; }
+  if(modalId === 'editStalkerPhotoModal') { document.getElementById('esp_photo_base64').value = ''; document.getElementById('esp_preview').style.display = 'none'; }
+  if(modalId === 'editMemberInfoModal') { document.getElementById('emi_exp').value = ''; document.getElementById('emi_desc').value = ''; }
+  if(modalId === 'globalRatingModal') { document.getElementById('globalRatingBody').innerHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Загрузка...</td></tr>'; }
 }
 
-/* ============ СКЛАД ============ */
 async function searchStock() {
   let query = document.getElementById('stockSearch').value.trim();
   if (!query) return;
@@ -453,7 +466,6 @@ async function createStockItem() {
   loadStock();
 }
 
-/* ============ БАЗА СТАЛКЕРОВ ============ */
 function switchBaseCategory(cat) {
   currentBaseCategory = cat;
   let tabs = document.querySelectorAll('.base-tab');
@@ -469,7 +481,7 @@ function toggleEnemyReason() {
   else { reasonInput.style.display = 'none'; reasonInput.value = ''; }
 }
 
-document.getElementById('pasteArea').addEventListener('paste', function(e) {
+function handlePasteEvent(e, previewId, base64Id) {
   let items = (e.clipboardData || e.originalEvent.clipboardData).items;
   for (let index in items) {
     if (items[index].kind === 'file') {
@@ -482,16 +494,21 @@ document.getElementById('pasteArea').addEventListener('paste', function(e) {
           canvas.width = maxWidth; canvas.height = img.height * scale;
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           let base64 = canvas.toDataURL('image/jpeg', 0.6);
-          document.getElementById('previewImage').src = base64;
-          document.getElementById('previewImage').style.display = 'inline-block';
-          document.getElementById('s_photo').value = base64;
+          document.getElementById(previewId).src = base64;
+          document.getElementById(previewId).style.display = 'inline-block';
+          document.getElementById(base64Id).value = base64;
         };
         img.src = event.target.result;
       };
       reader.readAsDataURL(items[index].getAsFile());
     }
   }
-});
+}
+
+document.getElementById('pasteArea').addEventListener('paste', function(e) { handlePasteEvent(e, 'previewImage', 's_photo'); });
+document.getElementById('memberPasteArea').addEventListener('paste', function(e) { handlePasteEvent(e, 'emp_preview', 'emp_photo_base64'); });
+document.getElementById('stalkerPasteAreaEdit').addEventListener('paste', function(e) { handlePasteEvent(e, 'esp_preview', 'esp_photo_base64'); });
+
 
 function filterStalkers() {
   let term = document.getElementById('stalkerSearch').value.toLowerCase();
@@ -503,13 +520,12 @@ function filterStalkers() {
   });
 }
 
-// ПЕРЕПИСАННАЯ ЗАГРУЗКА СТАЛКЕРОВ ДЛЯ БЕЗОПАСНОСТИ DOM
 async function loadStalkers(isTick = false) {
   let grid = document.getElementById('stalkersGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка базы...</div>';
   
   const { data } = await db.from('stalkers').select('*').order('id', { ascending: false });
-  allStalkersList = data || []; // Сохраняем в глобальный массив
+  allStalkersList = data || []; 
   
   const { data: tasksData } = await db.from('stalker_tasks').select('stalker_id').eq('is_completed', false);
   let activeCounts = {};
@@ -527,9 +543,8 @@ async function loadStalkers(isTick = false) {
 
       let statusColor = s.status === 'Доверенный' ? '#aaffaa' : '#ffaaaa';
       
-      // БОЛЬШЕ НИКАКИХ BASE64 в ONCLICK! Передаем только ID.
       newHTML += `
-        <div class="card" onclick="openStalkerModal(${s.id})">
+        <div class="card" onclick="openStalkerModal(${s.id})" style="cursor: pointer;">
           <div class="stalker-photo">${s.photo_url ? `<img src="${s.photo_url}">` : '<span style="color: #2a6b2a;">[Нет фото]</span>'}</div>
           <h3 style="margin: 5px 0; color: #b3ffb3;">${cat === 'enemy' ? '💀' : '☢️'} ${s.nickname}</h3>`;
           
@@ -596,7 +611,41 @@ async function deleteCurrentStalker() {
     }
 }
 
-// ПЕРЕПИСАНО: Достает данные сталкера из массива, а не из HTML
+function openStalkerPhotoModal() {
+  if (!document.body.classList.contains('is-admin')) return;
+  let s = allStalkersList.find(x => x.id === currentStalkerId);
+  if (!s) return;
+  document.getElementById('esp_name').textContent = s.nickname;
+  document.getElementById('esp_photo_base64').value = '';
+  document.getElementById('esp_preview').style.display = 'none';
+  document.getElementById('esp_preview').src = '';
+  document.getElementById('editStalkerPhotoModal').style.display = 'flex';
+}
+
+async function saveStalkerPhoto() {
+  let photoBase64 = document.getElementById('esp_photo_base64').value;
+  if (!photoBase64) return alert('Сначала вставь картинку (Ctrl+V)!');
+  
+  let btn = document.getElementById('btnSaveStalkerPhoto');
+  let oldText = btn.innerHTML;
+  btn.innerHTML = 'Загрузка...';
+  btn.disabled = true;
+
+  await db.from('stalkers').update({ photo_url: photoBase64 }).eq('id', currentStalkerId);
+  
+  btn.innerHTML = oldText;
+  btn.disabled = false;
+
+  let photoContainer = document.getElementById('m_photo');
+  photoContainer.innerHTML = `<img src="${photoBase64}" style="width:100%; height:100%; object-fit:cover;">`;
+  
+  let s = allStalkersList.find(x => x.id === currentStalkerId);
+  if (s) s.photo_url = photoBase64;
+
+  closeModal('editStalkerPhotoModal');
+  loadStalkers(true); 
+}
+
 async function openStalkerModal(id) {
   currentStalkerId = id; 
   let s = allStalkersList.find(x => x.id === id);
@@ -922,7 +971,6 @@ async function deleteCurrentFactionTask() {
    ЛИЧНЫЙ СОСТАВ И ЗАДАЧИ (РОСТЕР)
    ================================ */
 
-// ПЕРЕПИСАНО: Достает данные бойца из массива, а не из HTML (Безопасно для памяти)
 async function loadMembersList(isTick = false) {
   let grid = document.getElementById('membersGrid');
   if (!isTick) grid.innerHTML = '<div style="text-align: center; width: 100%;">Загрузка состава...</div>';
@@ -963,7 +1011,6 @@ async function loadMembersList(isTick = false) {
     }
 
     let html = '';
-    let isAdmin = document.body.classList.contains('is-admin');
 
     allMembersList.forEach(m => {
         let isMe = (m.callsign === window.currentUser.callsign);
@@ -976,15 +1023,8 @@ async function loadMembersList(isTick = false) {
         let activeBadge = actCount > 0 ? `<div style="position: absolute; top:-5px; right:-5px; background:#ffaa00; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Задач в работе">${actCount}</div>` : '';
         let reviewBadge = revCount > 0 ? `<div style="position: absolute; top:-5px; left:-5px; background:#4CAF50; color:#000; border-radius:50%; width:22px; height:22px; font-weight:bold; font-size:0.8rem; line-height:22px; border:2px solid #000; z-index:5;" title="Сдано на проверку">${revCount}</div>` : '';
         
-        let onclickAction = '';
-        if (isMe || isAdmin) {
-            onclickAction = `onclick="openMemberProfile('${safeName}')"`;
-        } else {
-            onclickAction = `onclick="alert('Доступ закрыт. Это ПДА бойца ${safeName}.')"`;
-        }
-
         html += `
-        <div class="card member-card ${isMe ? 'my-card' : ''}" ${onclickAction} style="position:relative;">
+        <div class="card member-card ${isMe ? 'my-card' : ''}" onclick="openMemberProfile('${safeName}')" style="position:relative;">
           ${isMe ? '<div class="my-card-label">ЭТО ТЫ</div>' : ''}
           ${reviewBadge}
           ${activeBadge}
@@ -1010,6 +1050,8 @@ function openMemberProfile(callsign) {
   document.getElementById('memberProfileModal').style.display = 'flex';
   document.getElementById('mp_name').textContent = m.callsign;
   document.getElementById('mp_rank').textContent = m.rank;
+  document.getElementById('mp_exp').textContent = m.experience || 'Не указан';
+  document.getElementById('mp_desc').textContent = m.description || 'Нет описания';
   
   let photoContainer = document.getElementById('mp_photo');
   if (m.photo_url && m.photo_url !== '') {
@@ -1021,29 +1063,29 @@ function openMemberProfile(callsign) {
   loadMemberTasksForProfile(callsign);
 }
 
-document.getElementById('memberPasteArea').addEventListener('paste', function(e) {
-  let items = (e.clipboardData || e.originalEvent.clipboardData).items;
-  for (let index in items) {
-    if (items[index].kind === 'file') {
-      let reader = new FileReader();
-      reader.onload = function(event) {
-        let img = new Image();
-        img.onload = function() {
-          let canvas = document.createElement('canvas'); let ctx = canvas.getContext('2d');
-          let maxWidth = 300; let scale = maxWidth / img.width;
-          canvas.width = maxWidth; canvas.height = img.height * scale;
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          let base64 = canvas.toDataURL('image/jpeg', 0.6);
-          document.getElementById('emp_preview').src = base64;
-          document.getElementById('emp_preview').style.display = 'inline-block';
-          document.getElementById('emp_photo_base64').value = base64;
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(items[index].getAsFile());
-    }
-  }
-});
+function openEditMemberInfoModal() {
+  if (!document.body.classList.contains('is-admin')) return;
+  let m = allMembersList.find(x => x.callsign === currentMemberCallsign);
+  if(!m) return;
+  document.getElementById('emi_exp').value = m.experience || '';
+  document.getElementById('emi_desc').value = m.description || '';
+  document.getElementById('editMemberInfoModal').style.display = 'flex';
+}
+
+async function saveMemberInfo() {
+  let exp = document.getElementById('emi_exp').value.trim();
+  let desc = document.getElementById('emi_desc').value.trim();
+  
+  await db.from('freedom_members').update({ experience: exp, description: desc }).eq('callsign', currentMemberCallsign);
+  
+  document.getElementById('mp_exp').textContent = exp || 'Не указан';
+  document.getElementById('mp_desc').textContent = desc || 'Нет описания';
+  
+  let m = allMembersList.find(x => x.callsign === currentMemberCallsign);
+  if(m) { m.experience = exp; m.description = desc; }
+  
+  closeModal('editMemberInfoModal');
+}
 
 function openMemberPhotoModal() {
   if (!document.body.classList.contains('is-admin')) return;
@@ -1054,12 +1096,11 @@ function openMemberPhotoModal() {
   document.getElementById('editMemberPhotoModal').style.display = 'flex';
 }
 
-// ПЕРЕПИСАНО: Добавлена блокировка кнопки и показ ошибки БД, если не отключен RLS
 async function saveMemberPhoto() {
   let photoBase64 = document.getElementById('emp_photo_base64').value;
   if (!photoBase64) return alert('Сначала вставь картинку (Ctrl+V)!');
   
-  let btn = event.target;
+  let btn = document.getElementById('btnSaveMemberPhoto');
   let oldText = btn.innerHTML;
   btn.innerHTML = 'Загрузка...';
   btn.disabled = true;
@@ -1077,7 +1118,6 @@ async function saveMemberPhoto() {
   let photoContainer = document.getElementById('mp_photo');
   photoContainer.innerHTML = `<img src="${photoBase64}" style="width:100%; height:100%; object-fit:cover;">`;
   
-  // Обновляем фото в массиве, чтобы не ждать тика
   let member = allMembersList.find(m => m.callsign === currentMemberCallsign);
   if (member) member.photo_url = photoBase64;
 
@@ -1093,6 +1133,12 @@ async function loadMemberTasksForProfile(callsign) {
   let html = '';
   let isAdmin = document.body.classList.contains('is-admin');
   
+  let completedCount = 0;
+  if (data) {
+      completedCount = data.filter(t => t.status === 'completed').length;
+  }
+  document.getElementById('mp_completed_tasks').textContent = completedCount;
+
   if (!data || data.length === 0) {
       html = '<div style="text-align: center; color: #555;">Боец отдыхает. Задач нет.</div>';
   } else {
@@ -1247,6 +1293,8 @@ async function loadHousing(isTick = false) {
   const { data } = await db.from('houses').select('*').order('id', { ascending: true });
   
   let html = '';
+  let isAdmin = document.body.classList.contains('is-admin');
+
   if(data) {
       data.forEach(h => {
           let isFree = h.renter === 'Свободно' || !h.renter;
@@ -1267,15 +1315,18 @@ async function loadHousing(isTick = false) {
               displayDate = '—';
           }
           
-          let editBtn = document.body.classList.contains('is-admin') 
-              ? `<button class="qty-btn admin-only" style="background:#2a552a; width:100%; margin-top:10px; padding:8px;" onclick="openHousingModal(${h.id}, '${h.renter || ''}', '${h.deadline || ''}')">✏️ Редактировать</button>` 
-              : '';
+          let safeRenter = (h.renter || '').replace(/'/g, "\\'");
+          let safeDeadline = h.deadline || '';
+          
+          let onclickAction = isAdmin 
+              ? `onclick="openHousingModal(${h.id}, '${safeRenter}', '${safeDeadline}')" style="cursor:pointer;"` 
+              : `style="cursor:default;"`;
 
-          html += `<div class="card" style="cursor: default;">
+          html += `<div class="card" ${onclickAction}>
               <h3 style="margin: 0 0 10px; color:#b3ffb3;">Домик #${h.id}</h3>
               <p style="margin: 0 0 5px; color:#8ab88a;">Жилец: <span style="color:${isFree ? '#ffaa00' : '#fff'}; font-weight:bold;">${h.renter || 'Свободно'}</span></p>
               <p style="margin: 0 0 5px; color:#8ab88a;">Срок: <span style="color:${color}; font-weight:bold;">${displayDate}</span></p>
-              ${editBtn}
+              ${isAdmin ? `<div style="font-size: 0.8rem; color:#5a8a5a; margin-top:10px;">(Кликни для редактирования)</div>` : ''}
           </div>`;
       });
   }
@@ -1295,42 +1346,100 @@ async function saveHousing() {
     let renter = document.getElementById('h_renter').value.trim() || 'Свободно';
     let deadline = document.getElementById('h_deadline').value;
     
-    if(renter !== 'Свободно' && !deadline) return alert('Укажи срок до какого числа оплачено!');
-    
     await db.from('houses').update({renter: renter, deadline: deadline || null}).eq('id', id);
     closeModal('housingModal');
     loadHousing();
 }
 
-async function loadRating(isTick = false) {
-  let tbody = document.getElementById('ratingBody');
-  if (!isTick) tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Подсчет...</td></tr>';
+function openGlobalRating() {
+  document.getElementById('globalRatingModal').style.display = 'flex';
+  loadGlobalRating();
+}
+
+async function loadGlobalRating() {
+  let tbody = document.getElementById('globalRatingBody');
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Загрузка...</td></tr>';
   const { data } = await db.from('obshchak_logs').select('callsign, amount, reason').gt('amount', 0);
   
-  let newHTML = '';
-  if (!data || data.length === 0) { newHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Пока никто не вносил в общак</td></tr>'; 
-  } else {
-    let totals = {}; 
-    data.forEach(log => { 
+  if (!data || data.length === 0) { 
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Пусто</td></tr>'; return; 
+  }
+  
+  let totals = {}; 
+  data.forEach(log => { 
       if (!log.reason || !log.reason.startsWith('[ПАХАНКА]')) { totals[log.callsign] = (totals[log.callsign] || 0) + log.amount; }
-    });
-    let sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  });
+  let sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
 
-    if (sorted.length === 0) { newHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Пока никто не вносил в общак</td></tr>'; 
-    } else {
-      sorted.forEach((p, i) => {
+  let newHTML = '';
+  sorted.forEach((p, i) => {
+      let placeStyle = i === 0 ? 'color: #ffd700; font-size: 1.2rem;' : (i === 1 ? 'color: #c0c0c0; font-size: 1.1rem;' : (i === 2 ? 'color: #cd7f32; font-size: 1.1rem;' : ''));
+      newHTML += `<tr><td style="${placeStyle}"># ${i + 1}</td><td>${p[0]}</td><td>${p[1].toLocaleString()} руб.</td></tr>`;
+  });
+  tbody.innerHTML = newHTML;
+}
+
+async function loadRating(isTick = false) {
+  let tbody = document.getElementById('ratingBody');
+  let topGrid = document.getElementById('lastWeekTopGrid');
+  
+  if (!isTick) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Подсчет...</td></tr>';
+      topGrid.innerHTML = '<div style="color:#888;">Загрузка...</div>';
+  }
+  
+  const { data } = await db.from('obshchak_logs').select('callsign, amount, reason, created_at').gt('amount', 0);
+  
+  let newHTML = '';
+  if (!data || data.length === 0) { 
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">Пока никто не вносил в общак</td></tr>'; 
+      topGrid.innerHTML = '<div style="color:#555;">Нет данных за прошлую неделю</div>';
+      return;
+  }
+
+  let { thisMonday, lastMonday } = getMondays();
+  
+  let currentTotals = {}; 
+  let lastTotals = {};
+
+  data.forEach(log => { 
+      if (!log.reason || !log.reason.startsWith('[ПАХАНКА]')) { 
+          let logDate = new Date(log.created_at);
+          if (logDate >= thisMonday) {
+              currentTotals[log.callsign] = (currentTotals[log.callsign] || 0) + log.amount;
+          } else if (logDate >= lastMonday && logDate < thisMonday) {
+              lastTotals[log.callsign] = (lastTotals[log.callsign] || 0) + log.amount;
+          }
+      }
+  });
+
+  let currentSorted = Object.entries(currentTotals).sort((a, b) => b[1] - a[1]);
+  if (currentSorted.length === 0) { 
+      newHTML = '<tr><td colspan="3" style="text-align: center; border: none; background: transparent;">На этой неделе еще никто не пополнял</td></tr>'; 
+  } else {
+      currentSorted.forEach((p, i) => {
         let place = i + 1;
-        let placeStyle = '';
-        
-        if (i === 0) placeStyle = 'color: #ffd700; text-shadow: 0 0 10px #ffd700; font-size: 1.5rem;';
-        else if (i === 1) placeStyle = 'color: #c0c0c0; text-shadow: 0 0 8px #c0c0c0; font-size: 1.4rem;';
-        else if (i === 2) placeStyle = 'color: #cd7f32; text-shadow: 0 0 6px #cd7f32; font-size: 1.3rem;';
-
+        let placeStyle = i === 0 ? 'color: #ffd700; text-shadow: 0 0 10px #ffd700; font-size: 1.5rem;' : (i === 1 ? 'color: #c0c0c0; text-shadow: 0 0 8px #c0c0c0; font-size: 1.4rem;' : (i === 2 ? 'color: #cd7f32; text-shadow: 0 0 6px #cd7f32; font-size: 1.3rem;' : ''));
         newHTML += `<tr><td style="${placeStyle}"># ${place}</td><td>${p[0]}</td><td>${p[1].toLocaleString()} руб.</td></tr>`;
       });
-    }
   }
   tbody.innerHTML = newHTML;
+
+  let lastSorted = Object.entries(lastTotals).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  let topHtml = '';
+  if (lastSorted.length === 0) {
+      topHtml = '<div style="color:#555;">Нет данных за прошлую неделю</div>';
+  } else {
+      lastSorted.forEach((p, i) => {
+          let colors = ['#ffd700', '#c0c0c0', '#cd7f32'];
+          let color = colors[i] || '#fff';
+          topHtml += `<div style="background:#111a11; border:1px solid ${color}; border-radius:8px; padding:10px; min-width:120px; text-align:center; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+            <div style="color:${color}; font-size:1.2rem; font-weight:bold; margin-bottom:5px;">#${i+1} ${p[0]}</div>
+            <div style="color:#aaffaa;">${p[1].toLocaleString()}</div>
+          </div>`;
+      });
+  }
+  topGrid.innerHTML = topHtml;
 }
 
 async function loadHistory(isTick = false) {
@@ -1375,8 +1484,9 @@ window.onload = () => {
     let activeTag = document.activeElement ? document.activeElement.tagName : '';
     let isTyping = (activeTag === 'INPUT' || activeTag === 'TEXTAREA');
     
-    // ПУНКТ 1: УМНАЯ ЗАМОРОЗКА. Тик не обновляет списки, если открыто окно редактирования фото
-    let isPhotoModalOpen = document.getElementById('editMemberPhotoModal').style.display === 'flex';
+    let isPhotoModalOpen = document.getElementById('editMemberPhotoModal').style.display === 'flex' || 
+                           document.getElementById('editStalkerPhotoModal').style.display === 'flex' ||
+                           document.getElementById('editMemberInfoModal').style.display === 'flex';
     
     if (isTyping || isPhotoModalOpen) return;
 
